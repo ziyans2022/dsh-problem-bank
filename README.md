@@ -61,6 +61,8 @@ problem-bank-data/
 
 `*` 为必填参数。
 
+| 工具 | 说明 | 参数 |
+| --- | --- | --- |
 | `ingest_raw` | 接收原始题目素材并创建草稿。图片题推荐：多模态模型先读图得到 imageDescription，再调用本工具 | text:string, imageDescription:string, imagePath:string, filePath:string, sourceType:string, uploader:string |
 | `structure_problem` | 将题目整理为标准结构并写入（可新建或更新）。完成后建议再 attach_subgraph 挂知识子图，以启用近重复检测与原创约束 | id:string, stem*:string, solution*:string, knowledgePoints:array, difficulty:number, tags:array, abilityLevels:array, sourceType:string |
 | `revise_problem` | 增量修订已有题目，只传需要修改的字段，显著节约 token | id*:string, stem:string, solution:string, knowledgePoints:array, difficulty:number, tags:array, abilityLevels:array |
@@ -86,7 +88,6 @@ problem-bank-data/
 | `plan_mock_paper` | 根据风格画像生成模拟卷计划：为每一题槽位采样主知识点、支撑、能力、负样本与难度。模型应按计划逐题生成，再填回试卷 | styleProfileId*:string, paperTitle:string, questionCount:number, preferMains:array |
 | `fill_paper_slot` | 将已生成并入库的题目填入模拟卷的指定槽位。全部填完后试卷状态变为 ready | paperId*:string, order*:number, problemId*:string |
 | `get_paper` | 获取试卷详情（含各槽位与已填题目 id） | paperId*:string |
-[problem-bank] init ok. bankRoot=C:\Users\LX\Documents\deepseek-harness\default-workspace\pb_review\v8run\tmpdata5, techniquesSeeded=30, schemaVersion=5
 
 ## 一次完整的变式出题
 
@@ -105,16 +106,27 @@ problem-bank-data/
 
 ## 开发
 
-`lib/` 已提交，安装使用不需要构建。构建需要 **DSH 源码工作区**：`@deepseek-ai/cordis`、`@deepseek-ai/dsh-tools`、`@deepseek-ai/schemastery` 由工作区提供；其中 `dsh-tools` 在公开 npm 上只有 `0.0.1-rc.1`，与本插件使用的 `0.2.x` API 不匹配，故未列为 devDependencies。
+`lib/` 已提交，安装使用不需要构建。重新构建需要 **DSH 源码工作区**：`src/` 依赖 `@deepseek-ai/cordis`、`@deepseek-ai/dsh-tools`、`@deepseek-ai/schemastery` 的类型，而这三个包声明为可选 peer，干净克隆里不会自动安装（公开 registry 上的 `dsh-tools` 最新稳定线也不与 harness 内置的 `0.2.x` 一一对应），因此构建在 DSH 工作区内进行。
+
+`peerDependencies` 的 `@deepseek-ai/dsh-tools` 写成 `>=0.2.1-0 <0.3.0-0`：node-semver 只允许「比较器与预发布版本拥有相同的 major.minor.patch 且自身带预发布标签」时才匹配预发布，`>=0.2.0` 会静默排除 harness 的 `0.2.1-rc.x`。写成 `0.2.1-0` 下界后，`0.2.1-rc.3` 与后续 `0.2.x` 稳定版都满足，`0.3` 起不满足。
 
 ```bash
 npm install                 # 只需要 typescript
 npm run build               # tsc → lib/，并拷贝 seed-techniques.json
 npm run test:integration    # 真 import lib/：往返、并发、状态机、旧格式迁移、填卷校验
-npm run pack:check          # build + npm pack + 解包后校验必需文件与 patch 包名
+npm run pack:check          # 有 typescript 时先 build，再 npm pack + 解包校验
+PB_SKIP_INSTALL=1 npm run pack:check   # 离线时跳过「从 tarball 干净安装」那一步
 ```
 
-改动 `src/` 后必须重新 `npm run build`，否则 `lib/` 与源码脱节（`pack:check` 会失败）。
+改动 `src/` 后必须重新 `npm run build`，否则 `lib/` 与源码脱节。
+
+## 上架官方插件市场
+
+插件市场索引由 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 维护，收录规则见其 `contributing.md`。本仓库已满足代码侧要求（`package.json` 声明 `dsh.bundle`、`cordis.patch.yml` 与它同级且 `insert[].name` 为包名、真实可运行代码、`dsh-plugin` 关键词、`peerDependencies` 声明官方包）。提交时还需要：
+
+1. 仓库至少创建满 1 天（CI 自动检查），并给仓库加 `dsh-plugin` topic；
+2. 在 awesome 仓库新增 `data/plugins/<owner>__<repo>.yml`，字段与取值见该仓库示例；
+3. `icon` 只接受 GitHub 托管的 png/jpg/jpeg/webp（`icon.svg` 不能用于索引条目，缺省时列表会显示仓库所属者头像）。
 
 ## 已知取舍
 
