@@ -2,7 +2,7 @@
 # Local source debug without install: use cordis.dev.yml instead.
 - insert:
     - id: problem-bank
-      name: '@zihua/dsh-problem-bank'
+      name: 'dsh-problem-bank'
       config:
         bankRoot: './problem-bank-data'
         idPrefix: 'ZH'

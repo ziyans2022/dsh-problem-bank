@@ -73,14 +73,14 @@ for (const ban of ['src', 'cordis.dev.yml', 'cordis.yml', 'node_modules']) {
 }
 
 const patch = await fs.readFile(path.join(extracted, 'cordis.patch.yml'), 'utf8')
-assert.match(patch, /@zihua\/dsh-problem-bank/)
+assert.match(patch, /name: 'dsh-problem-bank'/)
 assert.doesNotMatch(patch, /\.\/lib\/index\.js/)
 console.log('ok patch uses package name')
 
 const packedPkg = JSON.parse(
   await fs.readFile(path.join(extracted, 'package.json'), 'utf8'),
 )
-assert.equal(packedPkg.name, '@zihua/dsh-problem-bank')
+assert.equal(packedPkg.name, 'dsh-problem-bank')
 assert.equal(packedPkg.dsh.bundle.patch, './cordis.patch.yml')
 assert.equal(packedPkg.license, 'MIT')
 assert.ok((packedPkg.keywords || []).includes('dsh-plugin'))
@@ -104,7 +104,7 @@ if (process.env.PB_SKIP_INSTALL === '1') {
     cwd: installDir,
     stdio: 'inherit',
   })
-  const installed = path.join(installDir, 'node_modules', '@zihua', 'dsh-problem-bank')
+  const installed = path.join(installDir, 'node_modules', 'dsh-problem-bank')
   await fs.access(path.join(installed, 'lib/index.js'))
   await fs.access(path.join(installed, 'cordis.patch.yml'))
   await fs.access(path.join(installed, 'LICENSE'))

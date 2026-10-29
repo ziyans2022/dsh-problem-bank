@@ -39,7 +39,7 @@ $$
 g_n(x)=\frac{g_{n-1}(x)^2-2^{n-1}}{g_{n-2}(x)}.
 $$
 
-证明：对每个正整数 $n$，$g_n(x)$ 都是整系数的 $n$ 次多项式，并求方程
+证明：对每个正整数 $n$， $g_n(x)$ 都是整系数的 $n$ 次多项式，并求方程
 
 $$
 g_n(x)=0
@@ -68,15 +68,11 @@ $$
 ### 题目二：外心向量表示与三角形面积
 
 **原题**
-$$
 
-在 $\triangle ABC$ 中，$AB=3$，$AC=5$，外心为 $O$。已知存在实数 $\beta\ne 0$，使得
-
-$$
+在 $\triangle ABC$ 中， $AB=3$， $AC=5$，外心为 $O$。已知存在实数 $\beta\ne 0$，使得
 
 $$
-\overrightarrow{AO}
-=
+\overrightarrow{AO} =
 \beta\overrightarrow{AB}
 +
 \left(\frac12-\frac{\beta}{5}\right)
@@ -92,14 +88,11 @@ $$
 其中 $S_{\triangle ABC}$ 表示三角形 $ABC$ 的面积。
 
 **变形**
-$$
-在 $\triangle ABC$ 中，$AB=3$，$AC=4$，外心为 $O$。已知存在实数 $\beta\ne 0$，使得
+
+在 $\triangle ABC$ 中， $AB=3$， $AC=4$，外心为 $O$。已知存在实数 $\beta\ne 0$，使得
 
 $$
-
-$$
-\overrightarrow{AO}
-=
+\overrightarrow{AO} =
 \beta\overrightarrow{AB}
 +
 \left(\frac12-\frac{\beta}{4}\right)
@@ -115,7 +108,7 @@ DSH 的插件通过插件管理器安装（npm 包 / git 仓库 / 本地目录�
 **npm（发布后）** — 选 npm 来源，填包名：
 
 ```
-@zihua/dsh-problem-bank
+dsh-problem-bank
 ```
 
 **git** — 选 git 来源，填仓库地址 + 40 位 commit：
