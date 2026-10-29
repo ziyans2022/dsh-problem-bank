@@ -1,10 +1,10 @@
 <p align="left"><img src="icon.svg" width="64" height="64" alt="problem-bank"></p>
 
-# @zihua/dsh-problem-bank
+# dsh-problem-bank
 
 DeepSeek Harness 插件：结构化数学题库 + 技巧驱动的变式出题。
 
-`@zihua/dsh-problem-bank` 是一个面向数学题库建设与变式生成的插件。它不仅能够保存题目，还可以围绕知识点、解题技巧和题型骨架，对题目进行结构化管理，辅助发现变式方向。
+`dsh-problem-bank` 是一个面向数学题库建设与变式生成的插件。它不仅能够保存题目，还可以围绕知识点、解题技巧和题型骨架，对题目进行结构化管理，辅助发现变式方向。
 
 题目以 markdown + frontmatter 落盘，可直接用 git 管理；知识点、题型骨架、解题技巧构成三层索引，用来生成「同技巧、异题面」的新题，并自动识别换皮题。
 
@@ -68,8 +68,11 @@ $$
 ### 题目二：外心向量表示与三角形面积
 
 **原题**
+$$
 
 在 $\triangle ABC$ 中，$AB=3$，$AC=5$，外心为 $O$。已知存在实数 $\beta\ne 0$，使得
+
+$$
 
 $$
 \overrightarrow{AO}
@@ -89,8 +92,10 @@ $$
 其中 $S_{\triangle ABC}$ 表示三角形 $ABC$ 的面积。
 
 **变形**
-
+$$
 在 $\triangle ABC$ 中，$AB=3$，$AC=4$，外心为 $O$。已知存在实数 $\beta\ne 0$，使得
+
+$$
 
 $$
 \overrightarrow{AO}
