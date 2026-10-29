@@ -4,6 +4,10 @@ DeepSeek Harness 插件：结构化数学题库 + 技巧驱动的变式出题。
 
 题目以 markdown + frontmatter 落盘，可直接用 git 管理；知识点、题型骨架、解题技巧构成三层索引，用来生成「同技巧、异题面」的新题，并自动识别换皮题。
 
+## 示例：两道题的改编
+
+[两道真题的改编示例](docs/examples-two-problems.md)——从原题到变式题，按本插件的知识点 / 题型骨架 / 技巧三层结构写出，含公式渲染。
+
 ## 安装
 
 DSH 的插件通过插件管理器安装（npm 包 / git 仓库 / 本地目录三种来源）。不要手改 profile 里的 `cordis.patch.yml`。
