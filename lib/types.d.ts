@@ -127,6 +127,8 @@ export interface Problem {
     techniques?: string[];
     review?: ProblemReview;
     links?: ProblemLinks;
+    /** 变式记录：类型、目标、难度剖面与质量门审计 */
+    variation?: VariationRecord;
     meta: ProblemMeta;
 }
 export interface RawInput {
@@ -173,6 +175,77 @@ export interface SubgraphSimilarity {
  */
 export type InnovationOperator = 'transfer_domain' | 'change_goal' | 'couple' | 'inverse' | 'critical';
 export declare const INNOVATION_OPERATOR_HINTS: Record<InnovationOperator, string>;
+/**
+ * 变式类型：把「改题面」与「数学创新」分开
+ * - original    原始题（非变式），仍需声明难度剖面
+ * - isomorphic  同构变式：保持推理深度，只改表述/参数
+ * - structural  结构变式：保留核心思想，换掉关键结构
+ * - harder      增难变式：新增推理障碍（不得靠减少一般性换难度）
+ * - extension   拓展变式：推广结论或研究边界
+ * - simplified  降难变式：仅作明确的教学模式，不算创新
+ */
+export type VariationType = 'original' | 'isomorphic' | 'structural' | 'harder' | 'extension' | 'simplified';
+export declare const VARIATION_TYPE_LABELS: Record<VariationType, string>;
+/** 一般性要求：变式不得靠「一般 → 有限」来掩盖降难 */
+export type Generality = 'general-n' | 'finite-case' | 'single-instance';
+/**
+ * 难度剖面：只记录可核对的结构性事实，
+ * 步数与长度只能作为辅助指标，不能单独代表难度。
+ */
+export interface DifficultyProfile {
+    /** 核心定理 / 目标结论 */
+    coreClaim: string;
+    /** 关键技巧（Technique id 或一句话） */
+    keyTechniques: string[];
+    /** 最难的一步（必须具体到「要想到什么」） */
+    hardestStep: string;
+    /** 一般性要求 */
+    generality: Generality;
+    /** 必须完成的证明义务 */
+    proofObligations: string[];
+}
+/** 变式的数学证据：由生成者填写，由门禁逐项核对 */
+export interface VariationEvidence {
+    /** 保留了什么核心难点（至少一条） */
+    preserved: string[];
+    /** 新增了什么推理障碍（harder / structural / extension 必填） */
+    added: string[];
+    /** 削弱了什么（非 simplified 必须为空） */
+    weakened?: string[];
+    /** 独立求解核验 */
+    solving: {
+        conditionsCompatible: boolean;
+        solutionExists: boolean;
+        boundaryChecked: boolean;
+        proofComplete: boolean;
+        notes?: string;
+    };
+}
+export interface QualityCheck {
+    id: string;
+    label: string;
+    passed: boolean;
+    detail: string;
+}
+export interface VariationAudit {
+    variationType: VariationType;
+    originalProblemId?: string;
+    checks: QualityCheck[];
+    passed: boolean;
+    auditedAt: string;
+}
+/** 题目上的变式记录：意图在生成前写，审计在入库前写 */
+export interface VariationRecord {
+    type: VariationType;
+    originalProblemId?: string;
+    /** 本次变式的目标（保持难度 / 增难 / 结构迁移 / 推广） */
+    target?: string;
+    /** 候选题的难度剖面 */
+    profile?: DifficultyProfile;
+    /** 原题难度剖面快照（record 时从原题复制） */
+    originalProfile?: DifficultyProfile;
+    audit?: VariationAudit;
+}
 /** 生成采样：强制迁移与深度约束 */
 export interface GenerationSample {
     main: string;
@@ -214,6 +287,19 @@ export interface GenerationSample {
         /** 入库后人工门禁两问 */
         humanGateQuestions: string[];
     };
+    /** 变式质量门契约：生成前后都必须遵守 */
+    variationContract?: VariationContract;
+}
+/** 变式质量门契约：随采样一起返回，防止「看起来不同、数学上更简单」 */
+export interface VariationContract {
+    required: boolean;
+    allowedTypes: VariationType[];
+    /** 明确禁止的降难手法（默认含「一般 n 截成有限项」） */
+    forbiddenSimplifications: string[];
+    /** 生成后必须依次完成的门禁步骤 */
+    steps: string[];
+    /** 原题（若已知）的一般性要求；变式不得低于它 */
+    originalGenerality?: Generality;
 }
 /** 创新审阅清单（自动 + 给人） */
 export interface InnovationReview {

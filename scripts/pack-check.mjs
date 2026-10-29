@@ -19,7 +19,8 @@ const pkg = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'
 
 let hasTsc = false
 try {
-  await fs.access(path.join(root, 'node_modules', 'typescript', 'bin', 'tsc'))
+  // npm run 会把 node_modules/.bin 加到 PATH，所以 tsc 必须在这里才可用
+  await fs.access(path.join(root, 'node_modules', '.bin', 'tsc'))
   hasTsc = true
 } catch {}
 

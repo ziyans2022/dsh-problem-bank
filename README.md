@@ -14,56 +14,80 @@ DeepSeek Harness 插件：结构化数学题库 + 技巧驱动的变式出题。
 - **知识图谱管理**：建立知识点及其关联，便于检索相关概念和方法。
 - **解题技巧复用**：标注解题技巧，并根据技巧抽取题目，探索方法迁移。
 - **变式生成与近重复检查**：围绕题型骨架设计新题，辅助识别仅替换数字或表述的浅层变式。
+- **变式质量门**：变式必须声明类型与目标，并核对「保留了哪些难点 / 新增了哪些障碍 / 一般性是否被降低」，未过门禁无法入库。
 - **创新性审核流程**：记录机器检查和人工判断，区分草稿与已审核题目。
 - **试卷分析与组卷**：分析题目风格、规划试卷结构，并按题目要求组织试卷。
 
 插件的作用是辅助题目组织、变式设计与质量检查。机器检查结果不等于数学正确性或原创性的最终证明，仍需人工核验。下列示例按照插件的数据组织思路编写，不代表已经通过真实插件运行时的创新性审核。
 
+## 变式质量门
+
+变式不能仅以「题面不同、答案正确」作为合格标准。插件要求每次变式都写清三件事：**保留了什么核心难点、新增了什么推理障碍、一般性有没有被降低**，并在入库前逐项核对。
+
+| 变式类型 | 应达到的目标 | 例子 |
+| --- | --- | --- |
+| `isomorphic` 同构 | 保持推理深度，改变表述或参数 | 参数变化后仍需同层次的证明 |
+| `structural` 结构 | 保留核心思想，改变关键结构 | 把递推关系转化为不变量问题 |
+| `harder` 增难 | 增加新的推理障碍 | 从「n=4」提升到「对任意 n」 |
+| `extension` 拓展 | 推广结论或研究边界 | 从求实根拓展到零点分布 |
+| `simplified` 降难 | 仅作明确的教学模式，**不计为创新** | 只要求算出前几项 |
+
+`simplified` 默认被拒绝（配置项 `allowSimplified`），因为「看起来不同、数学上更简单」正是自动化出题最容易发生的退化。
+
+质量门六步：
+
+1. `record_variation_intent` —— 先声明变式类型与目标，并写原题与候选题的难度剖面（核心结论、关键技巧、**最难的一步**、一般性 `general-n` / `finite-case` / `single-instance`、证明义务）；
+2. 先设计数学结构，再决定参数与题面，不能反过来只替换数字；
+3. 独立求解：条件相容、解存在、边界情形、完整证明；
+4. `audit_variation` —— 提交 preserved / added / weakened 与求解核验；
+5. 门禁自动比对一般性：原题是 `general-n` 而变式掉到 `finite-case` 时直接判不通过，并给出原因；
+6. 通过后才能 `submit_for_review`；`commit_problem` 会再次拦截未过门禁的题目。
+
+步数与证明长度只作辅助指标，不能单独代表数学难度。
+
 ## 改编示例
 
-下面按「原题 → 变形」给出一例。变形保留原题的解题技巧与骨架，替换题面与数据——这正是 `sample_by_technique` 想要的「同技巧、异题面」。
+下面给出一个**通过质量门**的例子。前半是常见的失败写法，后半是按门禁重做的版本。
 
-### 例：递推多项式
-
-**原题**
+**原题（finite，教材风格）**
 
 设
-
 $$
-g_0(x)=1,\qquad g_1(x)=x,
-$$
-
-且对 $n\ge 2$，有
-
-$$
-g_n(x)=\frac{g_{n-1}(x)^2-2^{n-1}}{g_{n-2}(x)}.
+P_0(x)=1,\qquad P_1(x)=x,\qquad P_n(x)=\frac{P_{n-1}(x)^2-1}{P_{n-2}(x)}\quad(n\ge 2).
 $$
 
-证明：对每个正整数 $n$， $g_n(x)$ 都是整系数的 $n$ 次多项式，并求方程
+1. 求 $P_2(x),P_3(x),P_4(x)$，并验证它们都是 $\mathbb{Z}[x]$ 中的多项式；
+2. 求方程 $P_4(x)=0$ 的全部实根。
 
+答案是 $P_2=x^2-1$、 $P_3=x^3-2x$、 $P_4=x^4-3x^2+1$，实根为 $\pm\sqrt{(3\pm\sqrt5)/2}$。
+
+**失败写法（会被质量门拒绝）**
+
+把第 1 问改成「依次计算 $P_2,P_3,P_4$」，第 2 问改成「求 $P_4$ 的实根」——题面几乎没变，但原题最有价值的「一般性」没有被继承，实际是把 $n\le 4$ 的计算当成了新题。门禁的判词是：`一般性未被降低（原题 general-n → 变式 finite-case（降低：把一般性问题截成了特例））`。
+
+**合格变式（`harder`，`finite-case → general-n`）**
+
+1. 证明对任意 $n\ge 1$， $P_n(x)\in\mathbb{Z}[x]$ 且 $\deg P_n=n$；
+2. 证明不变量 $P_n^2-P_{n+1}P_{n-1}=1$，并由此得到线性递推 $P_{n+1}=xP_n-P_{n-1}$；
+3. 求 $P_n(x)=0$ 的全部实根。
+
+关键一步是猜出闭式：令 $x=2\cos\theta$，则 $P_n(2\cos\theta)=\dfrac{\sin((n+1)\theta)}{\sin\theta}$（即 $P_n=U_n(x/2)$，第二类 Chebyshev 多项式），再用归纳验证。零点因此是
 $$
-g_n(x)=0
-$$
-
-的全部根。
-
-**变形**
-
-定义
-
-$$
-P_0(x)=1,\qquad P_1(x)=x,
-$$
-
-并令
-
-$$
-P_n(x)=\frac{P_{n-1}(x)^2-1}{P_{n-2}(x)},\qquad n=2,3,4.
+x_k=2\cos\frac{k\pi}{n+1},\qquad k=1,2,\dots,n.
 $$
 
-1. 依次计算 $P_2(x),P_3(x),P_4(x)$。
-2. 对每一步递推，写出分子可被分母整除的因式分解或等式，验证所得多项式均属于 $\mathbb{Z}[x]$。
-3. 求方程 $P_4(x)=0$ 的全部实根。
+对应门禁字段：
+
+| 字段 | 填写内容 |
+| --- | --- |
+| 类型 / 目标 | `harder`（含结构成分）/ 把有限计算提升为一般性证明 |
+| 保留 | 同一递推族；整除性证明；求根目标 |
+| 新增 | 从 $n=4$ 到任意 $n$；需要猜闭式并归纳；零点计数与分布 |
+| 削弱 | 无 |
+| 一般性 | `finite-case` → `general-n` |
+| 求解核验 | 分母非零多项式（与归纳同步证明）、解存在、 $n=1,2$ 边界、证明完整 |
+
+这正是 `record_variation_intent` + `audit_variation` 要求写清楚的东西：不是「看起来不一样」，而是**说得出难度从哪来、新障碍是什么**。
 
 ## 安装
 
@@ -117,8 +141,10 @@ problem-bank-data/
 | `gitAuthorName` | `problem-bank` | 自动提交作者名 |
 | `gitAuthorEmail` | `problem-bank@local` | 自动提交作者邮箱 |
 | `nearDuplicateThreshold` | `0.75` | 子图相似度判近重复的阈值（0–1） |
+| `requireVariationGate` | `true` | 入库前必须声明变式类型并通过 `audit_variation` |
+| `allowSimplified` | `false` | 是否允许 `simplified`（降难）变式过门；默认禁止 |
 
-## 工具（25 个）
+## 工具（27 个）
 
 `*` 为必填参数。
 
@@ -139,6 +165,8 @@ problem-bank-data/
 | `sample_technique_combo` | 技巧组合采样：主技巧 + 副技巧，算子固定 couple。两技巧须在同一解题路径的关键步耦合，禁止拼盘 | primaryTechniqueId*:string, secondaryTechniqueId*:string, main:string, abilities:array, minEstimatedSteps:number |
 | `plan_technique_batch` | 对一组 TECH 批量产出创新采样计划（不写题）。operator 默认 transfer_domain；couple 时自动与列表中下一个技巧配对 | techniqueIds*:array, operator:string, main:string |
 | `review_innovation` | 创新门禁：自动检查骨架/技巧/禁止 patternId/步数/组合标注/近重复，并返回人工两问。生成入库后调用 | problemId*:string, forbiddenPatternIds:array, minEstimatedSteps:number, primaryTechniqueId:string, secondaryTechniqueId:string, operator:string |
+| `record_variation_intent` | 变式质量门第 1 步：声明变式类型、目标与难度剖面（核心结论、关键技巧、最难的一步、一般性、证明义务）。非变式题用 variationType=original | id*:string, variationType*:string, originalProblemId:string, target:string, coreClaim*:string, keyTechniques:array, hardestStep*:string, generality*:string, proofObligations:array |
+| `audit_variation` | 变式质量门第 2 步：核对保留/新增/削弱的难点与独立求解，并检查一般性未被降低。未通过则 commit_problem 拒绝入库 | id*:string, preserved*:array, added:array, weakened:array, conditionsCompatible*:boolean, solutionExists*:boolean, boundaryChecked*:boolean, proofComplete*:boolean, notes:string |
 | `submit_for_review` | 将草稿提交审核（draft → pending_review） | id*:string |
 | `review_problem` | 审核题目。decision: approve / reject | id*:string, decision*:string, notes:string, reviewer:string |
 | `commit_problem` | 正式入库。requireHumanReview=true 时必须先 approve。autoGitCommit=true 时自动 git commit | id*:string |
@@ -152,12 +180,16 @@ problem-bank-data/
 
 ## 一次完整的变式出题
 
-1. `sample_by_technique` / `sample_for_generation` —— 拿到硬约束、禁止的 patternId、迁移说明模板
-2. `structure_problem` —— 在约束内写题面与解析
-3. `attach_subgraph` + `attach_skeleton` + `attach_techniques` —— 挂知识点、骨架、技巧
-4. `check_near_duplicates` —— 同 patternId 一票否决
-5. `review_innovation` —— 自动门禁 + 人工两问
-6. `submit_for_review` → `review_problem` → `commit_problem`
+1. `sample_by_technique` / `sample_for_generation` —— 拿到硬约束、禁止的 patternId、迁移说明模板、变式契约（`variationContract`）
+2. `record_variation_intent` —— 先定变式类型与目标，写原题与候选题的难度剖面
+3. `structure_problem` —— 在约束内写题面与解析
+4. `attach_subgraph` + `attach_skeleton` + `attach_techniques` —— 挂知识点、骨架、技巧
+5. `audit_variation` —— 独立求解核验 + 保留 / 新增 / 削弱三栏；一般性不得下降
+6. `check_near_duplicates` —— 同 patternId 一票否决
+7. `review_innovation` —— 自动门禁（含变式质量门）+ 人工两问
+8. `submit_for_review` → `review_problem` → `commit_problem`
+
+`commit_problem` 会再拦一次：没声明变式类型、没审计、或审计未通过的题目一律不许入库。
 
 状态机：`draft → pending_review → approved`；`rejected` 只能改完重新提交，不能直接入库。
 
@@ -175,6 +207,7 @@ problem-bank-data/
 npm install                 # 只需要 typescript
 npm run build               # tsc → lib/，并拷贝 seed-techniques.json
 npm run test:integration    # 真 import lib/：往返、并发、状态机、旧格式迁移、填卷校验
+npm run test:gate           # 变式质量门：未声明/缺障碍/一般性下降/降难默认拒绝
 npm run pack:check          # 有 typescript 时先 build，再 npm pack + 解包校验
 PB_SKIP_INSTALL=1 npm run pack:check   # 离线时跳过「从 tarball 干净安装」那一步
 ```

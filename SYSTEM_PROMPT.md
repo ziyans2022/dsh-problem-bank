@@ -1,4 +1,4 @@
-# problem-bank v0.5.10 系统提示
+# problem-bank v0.5.12 系统提示
 
 目标：用**技巧**驱动创新，而不是整卷换皮。
 
@@ -9,7 +9,9 @@
 ```
 sample_by_technique({ techniqueId, operator?, secondaryTechniqueId? })
 → 写迁移说明（用返回的 migrationStatementTemplate）
+→ record_variation_intent（先定变式类型与目标，写原题/候选题难度剖面）
 → structure + attach_subgraph + attach_skeleton(新patternId) + attach_techniques
+→ audit_variation（保留/新增/削弱 + 独立求解核验）
 → check_near_duplicates
 → review_innovation
 ```
@@ -24,7 +26,7 @@ sample_by_technique({ techniqueId, operator?, secondaryTechniqueId? })
 4. estimatedSteps 达标；组合/临界建议 requiresCoupling  
 5. 近重复不过则重写，不降级换数  
 
-### 3. 创新算子 operator
+### 4. 创新算子 operator
 
 | 算子 | 含义 |
 |------|------|
@@ -34,7 +36,7 @@ sample_by_technique({ techniqueId, operator?, secondaryTechniqueId? })
 | inverse | 逆问题 |
 | critical | 临界化（常数是否可改进） |
 
-### 4. 技巧组合（推荐）
+### 5. 技巧组合（推荐）
 
 ```
 sample_technique_combo({
@@ -46,11 +48,11 @@ sample_technique_combo({
 
 要求：两技巧在**同一解题路径的关键步**同时出现，禁止两道小题拼盘。入库时 `attach_techniques` 须包含两个 ID。
 
-### 5. Exemplar 宜精
+### 6. Exemplar 宜精
 
 每技巧 2～4 道真题 `attach_techniques` 即可；读 `exemplarNote`，学思路不学题面。
 
-### 6. 人工门禁两问（review_innovation 返回）
+### 7. 人工门禁两问（review_innovation 返回）
 
 1. 去掉数字字母后是否仍与 exemplar 同构？  
 2. 核心路径是否仍是目标技巧（组合题：是否两个都在）？  

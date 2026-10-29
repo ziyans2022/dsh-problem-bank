@@ -26,6 +26,18 @@ const mockCtx = {
   on() {},
   effect() {},
   emit() {},
+  logger: () => ({ info() {}, warn() {}, error() {}, debug() {} }),
+  // cordis 4.x 的 Service 构造会调用 ctx.reflect.provide，故需最小可用 reflect
+  reflect: {
+    provide() {},
+    get() {
+      return undefined
+    },
+    set() {},
+    delete() {},
+    accessor() {},
+    mixin() {},
+  },
   tools: { register() {} },
 }
 

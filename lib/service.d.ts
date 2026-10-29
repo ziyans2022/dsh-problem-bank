@@ -7,7 +7,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis';
 import { Service } from '@deepseek-ai/cordis';
-import type { Problem, RawInput, SearchQuery, ProblemContent, ProblemLinks, KnowledgeSubgraph, AbilityLevel, SubgraphSimilarity, GenerationSample, Paper, PaperStyleProfile, MockPaperPlan, ProblemSkeleton } from './types.js';
+import type { Problem, RawInput, SearchQuery, ProblemContent, ProblemLinks, KnowledgeSubgraph, AbilityLevel, SubgraphSimilarity, GenerationSample, Paper, PaperStyleProfile, MockPaperPlan, ProblemSkeleton, VariationType, VariationEvidence, VariationAudit, DifficultyProfile } from './types.js';
 import { KnowledgeGraph } from './kg.js';
 export interface ProblemBankConfig {
     bankRoot: string;
@@ -19,6 +19,10 @@ export interface ProblemBankConfig {
     gitAuthorEmail?: string;
     /** 近重复判定阈值 */
     nearDuplicateThreshold?: number;
+    /** 是否强制变式质量门（默认 true）：入库前必须声明变式类型并通过审计 */
+    requireVariationGate?: boolean;
+    /** 是否允许 simplified（降难）变式入库（默认 false） */
+    allowSimplified?: boolean;
 }
 export declare class ProblemBankService extends Service {
     private config;
@@ -73,6 +77,24 @@ export declare class ProblemBankService extends Service {
         minEstimatedSteps?: number;
     }): Promise<GenerationSample>;
     reviewInnovation(problemId: string, sample?: GenerationSample): Promise<import('./types.js').InnovationReview>;
+    private assertProfile;
+    /** 生成前：声明变式类型、目标与候选题的难度剖面 */
+    recordVariationIntent(id: string, input: {
+        variationType: VariationType;
+        originalProblemId?: string;
+        target?: string;
+        profile: DifficultyProfile;
+    }): Promise<Problem>;
+    /** 入库前：逐项核对变式证据，通过才写入 audit */
+    auditVariation(id: string, evidence: VariationEvidence): Promise<{
+        problem: Problem;
+        audit: VariationAudit;
+        passed: boolean;
+        nextAction: string;
+    }>;
+    private computeVariationChecks;
+    private gateNextAction;
+    private attachVariationContract;
     planTechniqueBatch(techniqueIds: string[], options?: {
         operator?: import('./types.js').InnovationOperator;
         pairWith?: Record<string, string>;

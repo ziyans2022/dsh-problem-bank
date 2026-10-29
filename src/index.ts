@@ -54,6 +54,16 @@ export const Config: any = Schema.object({
   nearDuplicateThreshold: Schema.number()
     .default(0.75)
     .description('子图相似度近重复阈值 (0~1)'),
+  requireVariationGate: Schema.boolean()
+    .default(true)
+    .description(
+      '是否强制变式质量门：入库前必须声明变式类型并通过 audit_variation（关闭后旧题库可直接 commit）',
+    ),
+  allowSimplified: Schema.boolean()
+    .default(false)
+    .description(
+      '是否允许 simplified（降难）变式通过质量门；默认禁止，降难只能作为显式教学模式',
+    ),
 })
 
 export function apply(ctx: Context, config: Config) {
@@ -578,6 +588,201 @@ export function apply(ctx: Context, config: Config) {
           args.techniqueIds as string[],
         )
         return { id: p.id, techniques: p.techniques || [] }
+      },
+    }),
+  )
+
+  // ==================== 变式质量门 ====================
+
+  ctx.tools.register(
+    defineTool({
+      name: 'record_variation_intent',
+      description:
+        '变式质量门第 1 步（生成前必须先调用）：声明变式类型、目标，并写出原题与候选题的难度剖面（核心结论、关键技巧、最难的一步、一般性、证明义务）。非变式题请用 variationType=original。只替代数字或删掉最难一步的「简化改写」会在 audit_variation 被拦截。',
+      parameters: {
+        id: { type: 'string', required: true, description: '候选题 id' },
+        variationType: {
+          type: 'string',
+          enum: [
+            'original',
+            'isomorphic',
+            'structural',
+            'harder',
+            'extension',
+            'simplified',
+          ],
+          required: true,
+          description:
+            'original 原始题 / isomorphic 同构（保持深度换表述）/ structural 结构（换结构保思想）/ harder 增难（新增障碍）/ extension 拓展（推广或研究边界）/ simplified 降难（不计为创新，默认禁止）',
+        },
+        originalProblemId: {
+          type: 'string',
+          description: '原题 id（非 original 必填）',
+        },
+        target: {
+          type: 'string',
+          description: '本次变式目标：保持难度 / 增加难度 / 结构迁移 / 推广',
+        },
+        coreClaim: { type: 'string', required: true, description: '核心结论' },
+        keyTechniques: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '关键技巧（Technique id 或一句话）',
+        },
+        hardestStep: {
+          type: 'string',
+          required: true,
+          description: '最难的一步：要想到什么（不要只写步数）',
+        },
+        generality: {
+          type: 'string',
+          enum: ['general-n', 'finite-case', 'single-instance'],
+          required: true,
+          description: '一般性：general-n 对任意 n / finite-case 有限情形 / single-instance 单例',
+        },
+        proofObligations: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '必须完成的证明义务',
+        },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            variationType: { type: 'string' },
+            originalProblemId: { type: 'string' },
+            target: { type: 'string' },
+            generality: { type: 'string' },
+            originalGenerality: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [
+          {
+            type: 'text',
+            text:
+              `题目 ${v.id} 变式类型：${v.variationType}` +
+              (v.originalProblemId ? `（原题 ${v.originalProblemId}）` : '') +
+              `；一般性 ${v.generality}` +
+              (v.originalGenerality ? `（原题 ${v.originalGenerality}）` : '') +
+              '。下一步：写完题面与解析后调用 audit_variation。',
+          },
+        ],
+      },
+      async execute(args) {
+        const p = await bank.recordVariationIntent(args.id as string, {
+          variationType: args.variationType as any,
+          originalProblemId: args.originalProblemId as string | undefined,
+          target: args.target as string | undefined,
+          profile: {
+            coreClaim: args.coreClaim as string,
+            keyTechniques: (args.keyTechniques as string[]) || [],
+            hardestStep: args.hardestStep as string,
+            generality: args.generality as any,
+            proofObligations: (args.proofObligations as string[]) || [],
+          },
+        })
+        return {
+          id: p.id,
+          variationType: p.variation!.type,
+          originalProblemId: p.variation!.originalProblemId || '',
+          target: p.variation!.target || '',
+          generality: p.variation!.profile!.generality,
+          originalGenerality:
+            p.variation!.originalProfile?.generality || '',
+        }
+      },
+    }),
+  )
+
+  ctx.tools.register(
+    defineTool({
+      name: 'audit_variation',
+      description:
+        '变式质量门第 2 步（入库前必须通过）：逐项核对「保留了什么难点 / 新增了什么障碍 / 削弱了什么 / 是否独立求解」，并检查一般性未被降低。任何一项不通过都会阻止 commit_problem。',
+      parameters: {
+        id: { type: 'string', required: true },
+        preserved: {
+          type: 'array',
+          items: { type: 'string' },
+          required: true,
+          description: '保留了什么核心难点（至少一条，要具体）',
+        },
+        added: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '新增了什么推理障碍（harder/structural/extension 必填）',
+        },
+        weakened: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '削弱了什么（非 simplified 必须为空）',
+        },
+        conditionsCompatible: { type: 'boolean', required: true },
+        solutionExists: { type: 'boolean', required: true },
+        boundaryChecked: { type: 'boolean', required: true },
+        proofComplete: { type: 'boolean', required: true },
+        notes: { type: 'string', description: '求解与核验记录' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            passed: { type: 'boolean' },
+            checks: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  label: { type: 'string' },
+                  passed: { type: 'boolean' },
+                  detail: { type: 'string' },
+                },
+                additionalProperties: false,
+              },
+            },
+            nextAction: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => {
+          const checks = (v.checks as any[]) || []
+          const failed = checks.filter((c) => !c.passed)
+          return [
+            {
+              type: 'text',
+              text: v.passed
+                ? `质量门通过（${checks.length} 项全绿），可以 submit_for_review。`
+                : `质量门未通过：${failed
+                    .map((c) => `${c.label}（${c.detail}）`)
+                    .join('；')}`,
+            },
+          ]
+        },
+      },
+      async execute(args) {
+        const r = await bank.auditVariation(args.id as string, {
+          preserved: (args.preserved as string[]) || [],
+          added: (args.added as string[]) || [],
+          weakened: (args.weakened as string[]) || [],
+          solving: {
+            conditionsCompatible: args.conditionsCompatible as boolean,
+            solutionExists: args.solutionExists as boolean,
+            boundaryChecked: args.boundaryChecked as boolean,
+            proofComplete: args.proofComplete as boolean,
+            notes: args.notes as string | undefined,
+          },
+        })
+        return {
+          id: r.problem.id,
+          passed: r.passed,
+          checks: r.audit.checks,
+          nextAction: r.nextAction,
+        }
       },
     }),
   )
