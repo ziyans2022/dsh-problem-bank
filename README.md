@@ -19,11 +19,11 @@ DeepSeek Harness 插件：结构化数学题库 + 技巧驱动的变式出题。
 
 插件的作用是辅助题目组织、变式设计与质量检查。机器检查结果不等于数学正确性或原创性的最终证明，仍需人工核验。下列示例按照插件的数据组织思路编写，不代表已经通过真实插件运行时的创新性审核。
 
-## 两道题的改编示例
+## 改编示例
 
-下面两道题按「原题 → 变形」给出。变形保留原题的解题技巧与骨架，替换题面与数据——这正是 `sample_by_technique` 想要的「同技巧、异题面」。
+下面按「原题 → 变形」给出一例。变形保留原题的解题技巧与骨架，替换题面与数据——这正是 `sample_by_technique` 想要的「同技巧、异题面」。
 
-### 题目一：递推多项式
+### 例：递推多项式
 
 **原题**
 
@@ -64,42 +64,6 @@ $$
 1. 依次计算 $P_2(x),P_3(x),P_4(x)$。
 2. 对每一步递推，写出分子可被分母整除的因式分解或等式，验证所得多项式均属于 $\mathbb{Z}[x]$。
 3. 求方程 $P_4(x)=0$ 的全部实根。
-
-### 题目二：外心向量表示与三角形面积
-
-**原题**
-
-在 $\triangle ABC$ 中， $AB=3$， $AC=5$，外心为 $O$。已知存在实数 $\beta\ne 0$，使得
-
-$$
-\overrightarrow{AO} =
-\beta\overrightarrow{AB}
-+
-\left(\frac12-\frac{\beta}{5}\right)
-\overrightarrow{AC}.
-$$
-
-求
-
-$$
-\frac25 S_{\triangle ABC},
-$$
-
-其中 $S_{\triangle ABC}$ 表示三角形 $ABC$ 的面积。
-
-**变形**
-
-在 $\triangle ABC$ 中， $AB=3$， $AC=4$，外心为 $O$。已知存在实数 $\beta\ne 0$，使得
-
-$$
-\overrightarrow{AO} =
-\beta\overrightarrow{AB}
-+
-\left(\frac12-\frac{\beta}{4}\right)
-\overrightarrow{AC}.
-$$
-
-求三角形 $ABC$ 的面积，并求出 $\beta$。
 
 ## 安装
 
