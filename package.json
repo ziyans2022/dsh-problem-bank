@@ -22,7 +22,8 @@
     "cordis.patch.yml",
     "LICENSE",
     "README.md",
-    "SYSTEM_PROMPT.md"
+    "SYSTEM_PROMPT.md",
+    "icon.png"
   ],
   "engines": {
     "node": ">=18"

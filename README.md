@@ -1,12 +1,107 @@
+<p align="left"><img src="icon.svg" width="64" height="64" alt="problem-bank"></p>
+
 # @zihua/dsh-problem-bank
 
 DeepSeek Harness 插件：结构化数学题库 + 技巧驱动的变式出题。
 
+`@zihua/dsh-problem-bank` 是一个面向数学题库建设与变式生成的插件。它不仅能够保存题目，还可以围绕知识点、解题技巧和题型骨架，对题目进行结构化管理，辅助发现变式方向。
+
 题目以 markdown + frontmatter 落盘，可直接用 git 管理；知识点、题型骨架、解题技巧构成三层索引，用来生成「同技巧、异题面」的新题，并自动识别换皮题。
 
-## 示例：两道题的改编
+## 功能
 
-[两道真题的改编示例](docs/examples-two-problems.md)——从原题到变式题，按本插件的知识点 / 题型骨架 / 技巧三层结构写出，含公式渲染。
+- **题目入库与结构化**：整理题面、解答、知识点、难度与审核状态。
+- **知识图谱管理**：建立知识点及其关联，便于检索相关概念和方法。
+- **解题技巧复用**：标注解题技巧，并根据技巧抽取题目，探索方法迁移。
+- **变式生成与近重复检查**：围绕题型骨架设计新题，辅助识别仅替换数字或表述的浅层变式。
+- **创新性审核流程**：记录机器检查和人工判断，区分草稿与已审核题目。
+- **试卷分析与组卷**：分析题目风格、规划试卷结构，并按题目要求组织试卷。
+
+插件的作用是辅助题目组织、变式设计与质量检查。机器检查结果不等于数学正确性或原创性的最终证明，仍需人工核验。下列示例按照插件的数据组织思路编写，不代表已经通过真实插件运行时的创新性审核。
+
+## 两道题的改编示例
+
+下面两道题按「原题 → 变形」给出。变形保留原题的解题技巧与骨架，替换题面与数据——这正是 `sample_by_technique` 想要的「同技巧、异题面」。
+
+### 题目一：递推多项式
+
+**原题**
+
+设
+
+$$
+g_0(x)=1,\qquad g_1(x)=x,
+$$
+
+且对 $n\ge 2$，有
+
+$$
+g_n(x)=\frac{g_{n-1}(x)^2-2^{n-1}}{g_{n-2}(x)}.
+$$
+
+证明：对每个正整数 $n$，$g_n(x)$ 都是整系数的 $n$ 次多项式，并求方程
+
+$$
+g_n(x)=0
+$$
+
+的全部根。
+
+**变形**
+
+定义
+
+$$
+P_0(x)=1,\qquad P_1(x)=x,
+$$
+
+并令
+
+$$
+P_n(x)=\frac{P_{n-1}(x)^2-1}{P_{n-2}(x)},\qquad n=2,3,4.
+$$
+
+1. 依次计算 $P_2(x),P_3(x),P_4(x)$。
+2. 对每一步递推，写出分子可被分母整除的因式分解或等式，验证所得多项式均属于 $\mathbb{Z}[x]$。
+3. 求方程 $P_4(x)=0$ 的全部实根。
+
+### 题目二：外心向量表示与三角形面积
+
+**原题**
+
+在 $\triangle ABC$ 中，$AB=3$，$AC=5$，外心为 $O$。已知存在实数 $\beta\ne 0$，使得
+
+$$
+\overrightarrow{AO}
+=
+\beta\overrightarrow{AB}
++
+\left(\frac12-\frac{\beta}{5}\right)
+\overrightarrow{AC}.
+$$
+
+求
+
+$$
+\frac25 S_{\triangle ABC},
+$$
+
+其中 $S_{\triangle ABC}$ 表示三角形 $ABC$ 的面积。
+
+**变形**
+
+在 $\triangle ABC$ 中，$AB=3$，$AC=4$，外心为 $O$。已知存在实数 $\beta\ne 0$，使得
+
+$$
+\overrightarrow{AO}
+=
+\beta\overrightarrow{AB}
++
+\left(\frac12-\frac{\beta}{4}\right)
+\overrightarrow{AC}.
+$$
+
+求三角形 $ABC$ 的面积，并求出 $\beta$。
 
 ## 安装
 
@@ -126,11 +221,11 @@ PB_SKIP_INSTALL=1 npm run pack:check   # 离线时跳过「从 tarball 干净安
 
 ## 上架官方插件市场
 
-插件市场索引由 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 维护，收录规则见其 `contributing.md`。本仓库已满足代码侧要求（`package.json` 声明 `dsh.bundle`、`cordis.patch.yml` 与它同级且 `insert[].name` 为包名、真实可运行代码、`dsh-plugin` 关键词、`peerDependencies` 声明官方包）。提交时还需要：
+插件市场索引由 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 维护，收录规则见其 `contributing.md`。本仓库已满足代码侧要求（`package.json` 声明 `dsh.bundle`、`cordis.patch.yml` 与它同级且 `insert[].name` 为包名、真实可运行代码、`peerDependencies` 声明官方包）。提交时还需要：
 
-1. 仓库至少创建满 1 天（CI 自动检查），并给仓库加 `dsh-plugin` topic；
+1. 仓库至少创建满 1 天（CI 自动检查，红了会自己转绿；`dsh-plugin` topic 只是可发现性建议，不进 CI）；
 2. 在 awesome 仓库新增 `data/plugins/<owner>__<repo>.yml`，字段与取值见该仓库示例；
-3. `icon` 只接受 GitHub 托管的 png/jpg/jpeg/webp（`icon.svg` 不能用于索引条目，缺省时列表会显示仓库所属者头像）。
+3. `icon` 只接受 GitHub 托管的 png/jpg/jpeg/webp——本仓库的 `icon.png` 就是给索引条目用的（`icon.svg` 用于插件自身）。
 
 ## 已知取舍
 
