@@ -1,0 +1,406 @@
+[
+  {
+    "id": "TECH-PIECEWISE-ABS",
+    "name": "绝对值分段拼值域/范围",
+    "idea": "按绝对值零点分段，把分段结果拼成整体值域，必要时对参数反解",
+    "typicalMoves": [
+      "分段讨论",
+      "参数分离"
+    ],
+    "domains": [
+      "函数",
+      "不等式"
+    ],
+    "exemplarNote": "典型：含|x|的有理函数求值域。异题面：含参反推、复合、或曼哈顿几何区域上的距离/支撑。"
+  },
+  {
+    "id": "TECH-SUM-TO-PRODUCT",
+    "name": "和差条件平方合成",
+    "idea": "对sin/cos的和式平方相加得到差角或和角信息，或引入半角换元",
+    "typicalMoves": [
+      "平方求和",
+      "换元"
+    ],
+    "domains": [
+      "三角"
+    ],
+    "exemplarNote": "典型：sinα+sinβ与cosα+cosβ已知求cos(α−β)。异题面：求半角正切、加三角形约束、或向量模解释。"
+  },
+  {
+    "id": "TECH-PROJ-OR-DOT-EXTREMUM",
+    "name": "数量积/投影最值",
+    "idea": "线性目标写成点积或投影，在凸区域顶点或边界取最值",
+    "typicalMoves": [
+      "最值转化为几何",
+      "数形结合"
+    ],
+    "domains": [
+      "向量",
+      "线性规划"
+    ],
+    "exemplarNote": "典型：约束多边形上OP·OQ。异题面：物理投影、费用线性目标、支撑函数。"
+  },
+  {
+    "id": "TECH-INV-SYM-LINE",
+    "name": "关于直线对称求反函数型",
+    "idea": "图像关于y=−x或y=x对称等价于求反函数或复合反演",
+    "typicalMoves": [
+      "换元"
+    ],
+    "domains": [
+      "函数"
+    ],
+    "exemplarNote": "典型：与e^x关于y=−x对称求f。异题面：关于其他直线、或对称后求值域/不动点。"
+  },
+  {
+    "id": "TECH-CONIC-TANGENT-INTERCEPT",
+    "name": "圆锥曲线切线截距",
+    "idea": "用点斜式或公式写切线，与轴交点求三角形面积或弦长",
+    "typicalMoves": [
+      "待定系数",
+      "数形结合"
+    ],
+    "domains": [
+      "解析几何"
+    ],
+    "exemplarNote": "典型：椭圆切线过定点求截轴面积。异题面：双曲线/抛物线、或切线束参数范围。"
+  },
+  {
+    "id": "TECH-INT-SUM-PRODUCT",
+    "name": "和积已知的整数分解",
+    "idea": "由和与积限制因数，有序搜索或韦达反推",
+    "typicalMoves": [
+      "分类讨论"
+    ],
+    "domains": [
+      "初等数论",
+      "代数"
+    ],
+    "exemplarNote": "典型：a+b+c与abc已知求最大。异题面：加整除/同余约束，或改为多项式根。"
+  },
+  {
+    "id": "TECH-BINOMIAL-GENERAL-TERM",
+    "name": "二项/三项展开取系数",
+    "idea": "通项或多项式乘法收集指定幂次",
+    "typicalMoves": [
+      "待定系数"
+    ],
+    "domains": [
+      "代数"
+    ],
+    "exemplarNote": "典型：(1−1/x+x)^n中x^k系数。异题面：含参求系数为零的n、或与三角展开对比。"
+  },
+  {
+    "id": "TECH-CLASSICAL-PROB-STRUCTURE",
+    "name": "古典概型结构化计数",
+    "idea": "等可能样本点上对特殊结构（等差、同余）计数",
+    "typicalMoves": [
+      "分类讨论"
+    ],
+    "domains": [
+      "概率",
+      "组合"
+    ],
+    "exemplarNote": "典型：随机取k个数成等差的概率。异题面：成等比、和为定值、或格点路径。"
+  },
+  {
+    "id": "TECH-POLY-ABS-INEQ",
+    "name": "多项式与绝对值恒成立",
+    "idea": "区间上|f|≥g恒成立转化为最值或分段分析",
+    "typicalMoves": [
+      "分类讨论",
+      "参数分离"
+    ],
+    "domains": [
+      "不等式",
+      "函数"
+    ],
+    "exemplarNote": "典型：区间上|多项式|≥|x|求参数。异题面：换区间、换权、或几何距离解释。"
+  },
+  {
+    "id": "TECH-SUM-ESTIMATE-TIGHT",
+    "name": "求和放缩与常数锐利性",
+    "idea": "积分或单调性放缩证明不等式，并说明常数不可改进",
+    "typicalMoves": [
+      "放缩",
+      "数学归纳"
+    ],
+    "domains": [
+      "不等式",
+      "分析初步"
+    ],
+    "exemplarNote": "典型：√1+…+√n的k临界。异题面：换通项、或离散/连续对比。"
+  },
+  {
+    "id": "TECH-IRRATIONAL-FRAC-PART",
+    "name": "无理数与小数部分刻画",
+    "idea": "用{na}在(0,1)中无限逼近刻画无理性",
+    "typicalMoves": [
+      "反证",
+      "构造辅助量"
+    ],
+    "domains": [
+      "数论初步"
+    ],
+    "exemplarNote": "典型：a无理⇔任意m存在n使0<{na}<1/m。异题面：其他稠密性表述或序列。"
+  },
+  {
+    "id": "TECH-EISENSTEIN-INT-NORM",
+    "name": "三次单位根与范数",
+    "idea": "在Z[ω]上用范数做欧几里得型论证",
+    "typicalMoves": [
+      "构造辅助量",
+      "分类讨论"
+    ],
+    "domains": [
+      "代数整数初步"
+    ],
+    "exemplarNote": "典型：少年班单位根集合X与N。异题面：高斯整数、范数方程。"
+  },
+  {
+    "id": "TECH-COMPLETE-SQUARE",
+    "name": "配方与二次型完成平方",
+    "idea": "配成平方或平方和以判断符号、最值、轨迹",
+    "typicalMoves": [
+      "换元",
+      "待定系数"
+    ],
+    "domains": [
+      "代数",
+      "解析几何"
+    ],
+    "exemplarNote": "异题面：从函数最值换到椭圆定义或不等式等号条件。"
+  },
+  {
+    "id": "TECH-HOMOGENEOUS",
+    "name": "齐次化与归一",
+    "idea": "齐次式除以最高次幂降维，或设比值消元",
+    "typicalMoves": [
+      "换元",
+      "参数分离"
+    ],
+    "domains": [
+      "代数",
+      "不等式"
+    ],
+    "exemplarNote": "异题面：三角齐次、射影式表述。"
+  },
+  {
+    "id": "TECH-AM-GM-EQUAL",
+    "name": "基本不等式与等号设计",
+    "idea": "放缩时预先设计等号可达结构",
+    "typicalMoves": [
+      "放缩",
+      "构造辅助量"
+    ],
+    "domains": [
+      "不等式"
+    ],
+    "exemplarNote": "异题面：几何均值解释或物理约束。"
+  },
+  {
+    "id": "TECH-SUBST-TRIG",
+    "name": "三角换元",
+    "idea": "√(a²−x²)或圆约束用三角代换",
+    "typicalMoves": [
+      "换元",
+      "数形结合"
+    ],
+    "domains": [
+      "函数",
+      "解析几何"
+    ],
+    "exemplarNote": "异题面：从代数最值换到几何弦长/面积。"
+  },
+  {
+    "id": "TECH-RECURSIVE-INVARIANT",
+    "name": "递推与不变量",
+    "idea": "找操作下不变的量或单调势函数",
+    "typicalMoves": [
+      "构造辅助量",
+      "数学归纳"
+    ],
+    "domains": [
+      "数列",
+      "组合"
+    ],
+    "exemplarNote": "异题面：棋盘染色、变换轨道。"
+  },
+  {
+    "id": "TECH-EXTREME-PRINCIPLE",
+    "name": "极端原理",
+    "idea": "取最大/最小元素导出结构或矛盾",
+    "typicalMoves": [
+      "反证",
+      "分类讨论"
+    ],
+    "domains": [
+      "组合",
+      "数论"
+    ],
+    "exemplarNote": "异题面：图论度、几何最长边。"
+  },
+  {
+    "id": "TECH-DOUBLE-COUNT",
+    "name": "双重计数",
+    "idea": "同一集合两种方式计数建立等式",
+    "typicalMoves": [
+      "分类讨论",
+      "构造辅助量"
+    ],
+    "domains": [
+      "组合"
+    ],
+    "exemplarNote": "异题面：图边、期望形式。"
+  },
+  {
+    "id": "TECH-COORDINATE-BASH",
+    "name": "坐标化计算",
+    "idea": "几何关系放入坐标用代数验证",
+    "typicalMoves": [
+      "数形结合",
+      "待定系数"
+    ],
+    "domains": [
+      "几何"
+    ],
+    "exemplarNote": "异题面：向量/复数同一关系。"
+  },
+  {
+    "id": "TECH-COMPLEX-ARG-MOD",
+    "name": "复数模角与旋转",
+    "idea": "用模与辐角编码长度和旋转",
+    "typicalMoves": [
+      "换元",
+      "数形结合"
+    ],
+    "domains": [
+      "复数",
+      "几何"
+    ],
+    "exemplarNote": "异题面：正多边形、单位根滤波。"
+  },
+  {
+    "id": "TECH-LAGRANGE-ID",
+    "name": "恒等变形与配凑",
+    "idea": "配项使出现完全平方或可因式分解结构",
+    "typicalMoves": [
+      "构造辅助量",
+      "待定系数"
+    ],
+    "domains": [
+      "代数"
+    ],
+    "exemplarNote": "异题面：求参数使恒成立。"
+  },
+  {
+    "id": "TECH-MONOTONE-STACK",
+    "name": "单调性与端点控制",
+    "idea": "证明单调后把最值推到端点或临界点",
+    "typicalMoves": [
+      "参数分离",
+      "分类讨论"
+    ],
+    "domains": [
+      "函数",
+      "不等式"
+    ],
+    "exemplarNote": "异题面：差分/离散单调。"
+  },
+  {
+    "id": "TECH-PARAM-SEPARATION",
+    "name": "参数分离",
+    "idea": "参数与变量分到两边再对函数取最值",
+    "typicalMoves": [
+      "参数分离",
+      "分类讨论"
+    ],
+    "domains": [
+      "函数",
+      "不等式"
+    ],
+    "exemplarNote": "异题面：多参数或分段分离。"
+  },
+  {
+    "id": "TECH-SYMMETRY-REDUCE",
+    "name": "对称性降维",
+    "idea": "利用对称假设有序或设和差新变量",
+    "typicalMoves": [
+      "对称性",
+      "换元"
+    ],
+    "domains": [
+      "代数",
+      "不等式"
+    ],
+    "exemplarNote": "异题面：几何等腰设定。"
+  },
+  {
+    "id": "TECH-VIETA-JUMP",
+    "name": "韦达跳跃/根的迭代",
+    "idea": "由韦达关系构造递推或有限下降",
+    "typicalMoves": [
+      "数学归纳",
+      "反证"
+    ],
+    "domains": [
+      "数论",
+      "代数"
+    ],
+    "exemplarNote": "异题面：连分数型近似。"
+  },
+  {
+    "id": "TECH-INVERSION-RECIPROCAL",
+    "name": "取倒数/反演换元",
+    "idea": "x→1/x或圆反演使对称显现",
+    "typicalMoves": [
+      "换元",
+      "数形结合"
+    ],
+    "domains": [
+      "代数",
+      "几何"
+    ],
+    "exemplarNote": "异题面：几何反演题。"
+  },
+  {
+    "id": "TECH-WEIGHTED-AVG",
+    "name": "加权平均与凸性",
+    "idea": "用凸函数或加权把离散估计成连续",
+    "typicalMoves": [
+      "放缩",
+      "数形结合"
+    ],
+    "domains": [
+      "不等式"
+    ],
+    "exemplarNote": "异题面：期望形式。"
+  },
+  {
+    "id": "TECH-ANGLE-CHASE-ALG",
+    "name": "角度追踪代数化",
+    "idea": "几何角关系写成三角方程再代数解",
+    "typicalMoves": [
+      "数形结合",
+      "换元"
+    ],
+    "domains": [
+      "几何",
+      "三角"
+    ],
+    "exemplarNote": "异题面：从证明换到求值填空。"
+  },
+  {
+    "id": "TECH-GEN-FUNC-LIGHT",
+    "name": "浅层生成函数/状态转移",
+    "idea": "形式幂级数或递推状态编码计数",
+    "typicalMoves": [
+      "构造辅助量",
+      "数学归纳"
+    ],
+    "domains": [
+      "组合"
+    ],
+    "exemplarNote": "异题面：格子路径计数。"
+  }
+]

@@ -1,0 +1,12 @@
+# Local development only (not shipped in npm package files).
+# dsh web --patch ./cordis.dev.yml
+- insert:
+    - id: problem-bank
+      name: './lib/index.js'
+      config:
+        bankRoot: './problem-bank-data'
+        idPrefix: 'ZH'
+        autoGitCommit: false
+        requireHumanReview: true
+        defaultDifficulty: 3
+        nearDuplicateThreshold: 0.75

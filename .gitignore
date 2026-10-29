@@ -1,0 +1,5 @@
+node_modules/
+*.tgz
+problem-bank-data/
+*.log
+.DS_Store

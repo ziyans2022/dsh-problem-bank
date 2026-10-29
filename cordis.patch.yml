@@ -1,0 +1,12 @@
+# Market / npm install: name MUST be the package name so Node resolution works.
+# Local source debug without install: use cordis.dev.yml instead.
+- insert:
+    - id: problem-bank
+      name: '@zihua/dsh-problem-bank'
+      config:
+        bankRoot: './problem-bank-data'
+        idPrefix: 'ZH'
+        autoGitCommit: false
+        requireHumanReview: true
+        defaultDifficulty: 3
+        nearDuplicateThreshold: 0.75
