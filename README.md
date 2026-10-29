@@ -52,6 +52,7 @@ DeepSeek Harness 插件：结构化数学题库 + 技巧驱动的变式出题。
 **原题（finite，教材风格）**
 
 设
+
 $$
 P_0(x)=1,\qquad P_1(x)=x,\qquad P_n(x)=\frac{P_{n-1}(x)^2-1}{P_{n-2}(x)}\quad(n\ge 2).
 $$
@@ -72,6 +73,7 @@ $$
 3. 求 $P_n(x)=0$ 的全部实根。
 
 关键一步是猜出闭式：令 $x=2\cos\theta$，则 $P_n(2\cos\theta)=\dfrac{\sin((n+1)\theta)}{\sin\theta}$（即 $P_n=U_n(x/2)$，第二类 Chebyshev 多项式），再用归纳验证。零点因此是
+
 $$
 x_k=2\cos\frac{k\pi}{n+1},\qquad k=1,2,\dots,n.
 $$
