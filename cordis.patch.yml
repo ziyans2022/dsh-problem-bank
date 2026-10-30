@@ -1,5 +1,7 @@
 # Market / npm install: name MUST be the package name so Node resolution works.
 # Local source debug without install: use cordis.dev.yml instead.
+# bankRoot: relative paths resolve against the DSH process working directory,
+# not this package. Use an absolute path in production (e.g. D:/problem-bank-data).
 - insert:
     - id: problem-bank
       name: 'dsh-problem-bank'

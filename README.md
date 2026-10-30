@@ -169,43 +169,74 @@ $$
 
 ## 安装
 
-DSH 的插件通过插件管理器安装（npm 包 / git 仓库 / 本地目录三种来源）。不要手改 profile 里的 `cordis.patch.yml`。
+DSH 插件通过插件管理器安装：给一个 npm 包名、一个 git 仓库地址，或一个本地目录。不要手改 profile 里的 `cordis.patch.yml`。
 
-**npm（发布后）** — 选 npm 来源，填包名：
+本插件**尚未发布到 npm**，所以可用的来源是后两种。
 
-```
-dsh-problem-bank
-```
+**git 仓库** —— 填地址 + 40 位 commit（短哈希会被拒绝）：
 
-**git** — 选 git 来源，填仓库地址 + 40 位 commit：
-
-```
-git+https://github.com/ziyans2022/dsh-problem-bank.git#<commit>
+```text
+git+https://github.com/ziyans2022/dsh-problem-bank.git#d95c4c290277dcc7a084955d0d8f5a0f5360df42
 ```
 
-**本地目录** — 把本目录（含 `package.json` 与 `cordis.patch.yml`）作为本地目录来源安装。
+**本地目录** —— 指向解压后的目录，该目录必须同时含 `package.json` 与 `cordis.patch.yml`：
 
-装好后插件行显示「题库插件」，可在插件设置里改 `bankRoot`。
+```text
+C:\tools\dsh-problem-bank
+```
 
-> `cordis.patch.yml` 里的 `name` 是**包名**，只有安装进 `node_modules` 后才能解析；直接拿它当本地 patch 加载会失败。本地源码调试请用 `cordis.dev.yml`（`name: './lib/index.js'`，相对路径）。
+Windows 路径含空格时整段给出，不要加引号或转义。
+
+### 装完怎么确认
+
+1. 插件列表里出现「题库插件」—— 标题来自 `locale/zh.json` 的 `meta.title`，不是包名；
+2. 工具列表里能看到 `sample_by_technique`、`migrate_bank` 等共 42 个工具；
+3. 日志里有一行 `[problem-bank] init ok. bankRoot=…, techniquesSeeded=30, schemaVersion=6`。
+
+三条缺一条，先看第 3 条里的 `bankRoot` 指向哪里，见下一节。
+
+### 升级
+
+插件市场**不支持原地升级**。换版本：先在插件管理器里移除，再按上面的方式装新版本。数据在 `bankRoot` 里，不随插件卸载消失，重装会复用同一目录。
+
+从 0.5.x 升到 0.6.0 后，第一次打开旧题库先跑 `migrate_bank({ dryRun: true })` 看影响面，再跑 `migrate_bank({ dryRun: false })`。迁移会备份到 `<bankRoot>/migration/<时间>/`，可重复运行、可用 `rollbackMigration` 回滚。
+
+### 为什么 patch 里写的是包名
+
+`cordis.patch.yml` 的 `name: 'dsh-problem-bank'` 是**包名**，靠 Node 的模块解析从 profile 的 `node_modules` 里找入口，所以必须由插件管理器装进去。直接把仓库目录当 patch 加载会报 `Cannot find package`；本地改源码调试请用 `cordis.dev.yml`（`name: './lib/index.js'`，相对路径）。
 
 ## 数据目录
 
-默认 `./problem-bank-data`（相对进程工作目录），建议在配置里改成绝对路径：
+`bankRoot` 默认 `./problem-bank-data`。**相对路径按 DSH 进程的工作目录解析，不是插件目录**（`lib/service.js` 里的 `path.resolve`）。装成插件后工作目录可能是应用安装目录，升级时连同数据一起被清掉的风险不低，正式使用请填绝对路径：
 
+```yaml
+bankRoot: 'D:/problem-bank-data'
 ```
+
+（Windows 反斜杠要写成 `C:\\data\\problem-bank`，或者统一用正斜杠。）
+
+```text
 problem-bank-data/
 ├── 2026/
 │   └── ZH-0001.md          题目：frontmatter + 「## 题面 / ## 解析 / ## 【配图】N」
 ├── kg/
 │   ├── nodes.json          知识点
-│   ├── relations.json      知识点关系
+│   ├── relations.json      知识点关系（学习层 / 数学层）
 │   └── techniques.json     技巧（首次初始化灌入 30 条种子）
 ├── papers/                 模拟卷
+├── migration/              迁移备份与报告（执行 migrate_bank 后出现）
 └── .problem-bank-id-seq    题号序列
 ```
 
 题目是纯文本，`git diff` 可读；打开 `autoGitCommit` 后每次入库自动在 `bankRoot` 内 commit。
+
+技巧种子只在 `kg/techniques.json` 为空时灌入：**你一旦自己加过任何技巧，种子就不会再补**。这是有意的（避免覆盖你的编辑），需要补齐请手动 `kg_add_technique`。
+
+## 权限与副作用
+
+- 插件直接用文件系统写 `bankRoot`（题目 `.md`、`kg/*.json`、`papers/*.json`），**不经过 DSH 的工作区沙箱**；`bankRoot` 指向哪里就写哪里。
+- 打开 `autoGitCommit` 会在 `bankRoot` 内执行 `git init`（若无仓库）、`git add -A`、`git commit`，作者取 `gitAuthorName` / `gitAuthorEmail`。默认关闭。
+- 插件自身不发起任何网络请求；推送到远端由你手动做。
 
 ## 配置
 
@@ -298,6 +329,12 @@ problem-bank-data/
 
 `peerDependencies` 的 `@deepseek-ai/dsh-tools` 写成 `>=0.2.1-0 <0.3.0-0`：node-semver 只允许「比较器与预发布版本拥有相同的 major.minor.patch 且自身带预发布标签」时才匹配预发布，`>=0.2.0` 会静默排除 harness 的 `0.2.1-rc.x`。写成 `0.2.1-0` 下界后，`0.2.1-rc.3` 与后续 `0.2.x` 稳定版都满足，`0.3` 起不满足。
 
+跑测试需要 `@deepseek-ai/cordis` 能被解析（`lib/service.js` 从它 import `Service`）；它是可选 peer，干净克隆里不会自动装上，先补一句：
+
+```bash
+npm install --no-save @deepseek-ai/cordis@4.0.5
+```
+
 ```bash
 npm install                 # 只需要 typescript
 npm run build               # tsc → lib/，并拷贝 seed-techniques.json
@@ -321,14 +358,13 @@ PB_SKIP_INSTALL=1 npm run pack:check   # 离线时跳过「从 tarball 干净安
 
 ## 已知取舍
 
-- 检索仍是内存全量扫描（题库到万题级需要建索引）。
-- 六维难度是评分工具，不是自动推断：没有证据的维度不填，也不会被模型"猜"出来。
-
-- `search` 无索引：按年份目录全量扫描并解析。1000 题以内够用，更多需要加缓存或索引
-- 文件锁是「进程内串行 + `wx` 锁文件」，多进程同时写会互相覆盖
-- 读-改-写没有版本校验（CAS），并发修改同一题后写覆盖先写
-- 技巧种子只在 `techniques.json` 为空时灌入，之后新增种子需要手动导入
-- 图标与展示文案来自导出的 `./icon`、`./locale/*.json`；`meta.title` 缺失时回退到包名
+- `search` 无索引：按年份目录全量扫描并解析，千题以内够用，更多需要缓存或索引。
+- 文件锁是「进程内串行 + `wx` 锁文件」，多进程同时写会互相覆盖。
+- 读-改-写没有版本校验（CAS），并发修改同一题时后写覆盖先写。
+- 技巧种子只在 `techniques.json` 为空时灌入，之后新增种子要手动导入。
+- 六维难度是评分工具，不是自动推断：没有证据的维度不填，也不会被模型「猜」出来。
+- 安装来源暂无 npm 包：只能用 git 或本地目录，装完不会有 npm 版本号可查。
+- 图标与展示文案来自导出的 `./icon`、`./locale/*.json`；`meta.title` 缺失时回退到包名。
 
 ## License
 
