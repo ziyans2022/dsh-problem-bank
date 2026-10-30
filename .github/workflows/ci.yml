@@ -70,6 +70,21 @@ jobs:
           fi
           echo "lib/ 与 src/ 一致。"
 
+
+      # lib/tool-schemas.json 是降级注册用的构建产物，tsc 不会更新它；
+      # 这里用真实 dsh-tools（装在仓库外的 prefix，避免污染 node_modules）重新编译并比对。
+      - name: tool-schemas snapshot is fresh
+        run: |
+          npm install --no-audit --no-fund --no-save --prefix /tmp/tools @deepseek-ai/dsh-tools@0.2.1-rc.5
+          cp lib/tool-schemas.json /tmp/tool-schemas.before.json
+          node scripts/build-tool-schemas.mjs --dsh-tools /tmp/tools/node_modules/@deepseek-ai/dsh-tools
+          if ! cmp -s /tmp/tool-schemas.before.json lib/tool-schemas.json; then
+            echo "::error::lib/tool-schemas.json 与 src/ 的工具定义不一致：请跑 npm run build:schemas 再提交。"
+            diff /tmp/tool-schemas.before.json lib/tool-schemas.json | head -40 || true
+            exit 1
+          fi
+          echo "tool-schemas 快照是最新的。"
+
   package:
     name: package contents
     runs-on: ubuntu-latest

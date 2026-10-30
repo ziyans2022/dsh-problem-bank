@@ -22,6 +22,15 @@ const { parameterSchemaSpecToJsonSchema, valueSchemaSpecToJsonSchema } = await i
 // 正常情况下仓库里没有 dsh-tools，会走降级分支拿到已编译的 schema；这里临时放一个 stub。
 const stubDir = path.join(repo, 'node_modules', '@deepseek-ai', 'dsh-tools')
 const hadStub = fs.existsSync(stubDir)
+if (hadStub) {
+  const v = JSON.parse(fs.readFileSync(path.join(stubDir, 'package.json'), 'utf8')).version
+  if (v !== '0.0.0-stub') {
+    throw new Error(
+      'node_modules 里有真实的 @deepseek-ai/dsh-tools（' + v + '）：' +
+        '脚本需要 lib/index.js 拿到原样返回的 defineTool，请先移除它，或在一个干净的 checkout 里运行。',
+    )
+  }
+}
 if (!hadStub) {
   fs.mkdirSync(stubDir, { recursive: true })
   fs.writeFileSync(
