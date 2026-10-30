@@ -31,10 +31,12 @@ export declare class ProblemBankService extends Service {
     readonly kg: KnowledgeGraph;
     constructor(ctx: Context, config: ProblemBankConfig);
     /** 启动时调用：确保目录、技巧种子、id 序列可用 */
+    private initOnce?;
     init(): Promise<{
         techniquesSeeded: number;
         bankRoot: string;
     }>;
+    private doInit;
     private ensureDir;
     private listYearDirs;
     private findProblemPath;

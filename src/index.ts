@@ -8,9 +8,8 @@
  * 4. 多信号近重复 + 强制 contrast/application 迁移采样
  */
 
+import { readFileSync } from 'node:fs'
 import type { Context } from '@deepseek-ai/cordis'
-import Schema from '@deepseek-ai/schemastery'
-import { defineTool } from '@deepseek-ai/dsh-tools'
 import { ProblemBankService, type ProblemBankConfig } from './service.js'
 import { migrateBank } from './migration.js'
 import { rubricSummary } from './difficulty.js'
@@ -22,12 +21,45 @@ import type {
   RelationType,
 } from './types.js'
 
+// @deepseek-ai/dsh-tools 与 @deepseek-ai/schemastery 随 DSH 一起发布，但不保证能沿插件
+// 自己的解析路径找到：插件装在 profile 的 node_modules 下，harness 的包在应用的 app.asar 里。
+// 解析不到时降级——工具定义按原样注册（registry 只要求 parameters 是合法 JSON Schema），
+// Config 则不再声明，apply 仍然拿得到配置对象。
+let defineTool: (options: any) => any
+let Schema: any
+try {
+  ;({ defineTool } = await import('@deepseek-ai/dsh-tools'))
+} catch {
+  // 降级路径：lib/tool-schemas.json 是构建期用真实 dsh-tools 编译好的 JSON Schema 快照。
+  // 没有它就只能原样注册（parameters 是内部 spec，不是 JSON Schema），所以构建时必须生成。
+  let baked: Record<string, { parameters: any; output: any }> = {}
+  try {
+    baked = JSON.parse(readFileSync(new URL('./tool-schemas.json', import.meta.url), 'utf8'))
+  } catch {
+    baked = {}
+  }
+  defineTool = (options: any) => {
+    const hit = baked[options.name]
+    return {
+      ...options,
+      parameters: hit?.parameters ?? options.parameters,
+      output: { ...options.output, schema: hit?.output ?? options.output?.schema },
+    }
+  }
+}
+try {
+  Schema = (await import('@deepseek-ai/schemastery')).default
+} catch {
+  Schema = undefined
+}
+
 export const name = 'problem-bank'
 export const inject = ['tools']
 
 export interface Config extends ProblemBankConfig {}
 
-export const Config: any = Schema.object({
+const configShape = Schema
+  ? Schema.object({
   bankRoot: Schema.string()
     .default('./problem-bank-data')
     .description('题库根目录（绝对路径更佳）'),
@@ -71,9 +103,37 @@ export const Config: any = Schema.object({
     .description(
       '是否允许 simplified（降难）变式通过质量门；默认禁止，降难只能作为显式教学模式',
     ),
-})
+  })
+  : undefined
 
-export function apply(ctx: Context, config: Config) {
+export const Config: any = configShape
+
+// schemastery 缺席时（安装环境解析不到）Config 不会被实例化，schema 默认值也就不会生效。
+// 因此在进入 service 之前显式补一份默认值，保证降级路径下的行为与正常安装一致。
+const DEFAULTS = {
+  bankRoot: './problem-bank-data',
+  idPrefix: 'ZH',
+  autoGitCommit: false,
+  requireHumanReview: true,
+  defaultDifficulty: 3,
+  gitAuthorName: 'problem-bank',
+  gitAuthorEmail: 'problem-bank@local',
+  nearDuplicateThreshold: 0.75,
+  requireVariationGate: true,
+  allowSimplified: false,
+  requireInnovationReview: true,
+} as const
+
+function withDefaults(config: Config | undefined): Config {
+  const merged: Record<string, unknown> = { ...DEFAULTS }
+  for (const [key, value] of Object.entries(config ?? {})) {
+    if (value !== undefined) merged[key] = value
+  }
+  return merged as unknown as Config
+}
+
+export function apply(ctx: Context, rawConfig: Config) {
+  const config = withDefaults(rawConfig)
   const bank = new ProblemBankService(ctx, config)
   ctx.problemBank = bank
 

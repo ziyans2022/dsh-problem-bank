@@ -14,4 +14,4 @@ export declare const inject: string[];
 export interface Config extends ProblemBankConfig {
 }
 export declare const Config: any;
-export declare function apply(ctx: Context, config: Config): void;
+export declare function apply(ctx: Context, rawConfig: Config): void;

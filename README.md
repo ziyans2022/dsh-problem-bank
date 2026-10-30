@@ -342,6 +342,8 @@ npm run test:integration    # 真 import lib/：往返、并发、状态机、�
 npm run test:gate           # 变式质量门：未声明/缺障碍/一般性下降/降难默认拒绝
 npm run test:solutions      # 多解法：增/改/删/切换主解法、Markdown 往返、写放大
 npm run test:intel          # 图谱 v2、六维难度、组卷硬约束、迁移与回滚
+npm run test:install        # 把 tarball 装进干净目录并加载：能抓到「装不上」
+npm run build:schemas       # 重新生成 lib/tool-schemas.json（需要 @deepseek-ai/dsh-tools）
 npm run pack:check          # 有 typescript 时先 build，再 npm pack + 解包校验
 PB_SKIP_INSTALL=1 npm run pack:check   # 离线时跳过「从 tarball 干净安装」那一步
 ```
@@ -364,6 +366,7 @@ PB_SKIP_INSTALL=1 npm run pack:check   # 离线时跳过「从 tarball 干净安
 - 技巧种子只在 `techniques.json` 为空时灌入，之后新增种子要手动导入。
 - 六维难度是评分工具，不是自动推断：没有证据的维度不填，也不会被模型「猜」出来。
 - 安装来源暂无 npm 包：只能用 git 或本地目录，装完不会有 npm 版本号可查。
+- `@deepseek-ai/dsh-tools` / `@deepseek-ai/schemastery` 是可选 peer，解析不到时走降级：工具用构建期快照 `lib/tool-schemas.json` 注册、配置默认值在代码里兜底、`Config` 不再声明。降级路径由 `npm run test:install` 守护。
 - 图标与展示文案来自导出的 `./icon`、`./locale/*.json`；`meta.title` 缺失时回退到包名。
 
 ## License

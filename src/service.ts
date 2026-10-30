@@ -93,7 +93,15 @@ export class ProblemBankService extends Service {
   }
 
   /** 启动时调用：确保目录、技巧种子、id 序列可用 */
+  private initOnce?: Promise<{ techniquesSeeded: number; bankRoot: string }>
+
   async init(): Promise<{ techniquesSeeded: number; bankRoot: string }> {
+    // 幂等：effect 触发一次、调用方再显式 init 一次时不会重复灌种子
+    this.initOnce ??= this.doInit()
+    return this.initOnce
+  }
+
+  private async doInit(): Promise<{ techniquesSeeded: number; bankRoot: string }> {
     const bankRoot = path.resolve(this.config.bankRoot)
     this.config.bankRoot = bankRoot
     await this.ensureDir(bankRoot)

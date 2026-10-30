@@ -2,6 +2,20 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。早期版本（0.5.x）是快速迭代期，行为变更多；0.6.0 起的数据格式有 schema 版本号，升级路径见各条目的「升级」。
 
+## [0.6.1] — 2026-10-30
+
+### 修复
+
+- **插件在真实安装里起不来**：`lib/index.js` 顶层静态 import 了 `@deepseek-ai/dsh-tools` 与 `@deepseek-ai/schemastery`，而两者是可选 peer。装进 profile 后如果沿插件的解析路径找不到它们，模块加载阶段就 `ERR_MODULE_NOT_FOUND`，`apply` 根本不会执行。
+- 改为运行期可降级：解析得到就用真实的 `defineTool`；解析不到时用构建期快照 `lib/tool-schemas.json`（42 个工具的 JSON Schema）注册，配置默认值在 `apply` 里兜底，`Config` 不再声明。
+- 降级时 `parameters` 必须是 JSON Schema：直接原样注册会把内部 spec（`{ id: { type: 'string', required: true } }`）当成 schema，registry 拿到的是坏 schema。
+- `init()` 改为幂等（`initOnce`）：`effect` 与显式调用同时发生时不会重复灌种子并返回 0。
+
+### 新增
+
+- `scripts/install-smoke.mjs`（`npm run test:install`）：`npm pack` → 解到干净目录 → 不带 dsh-tools / schemastery 加载 → 断言 42 个工具、参数是 JSON Schema、种子 30 条、能建草稿。CI 已接入。
+- `scripts/build-tool-schemas.mjs`（`npm run build:schemas`）：用真实 dsh-tools 把工具定义编译进 `lib/tool-schemas.json`。
+
 ## [0.6.0] — 2026-10-30
 
 Structured Problem Intelligence：不加工具数量，补三个底层结构。

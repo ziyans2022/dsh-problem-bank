@@ -1,0 +1,2175 @@
+{
+  "ingest_raw": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "题目纯文本或 OCR 结果"
+        },
+        "imageDescription": {
+          "type": "string",
+          "description": "多模态模型对截图的完整文字描述（推荐）"
+        },
+        "imagePath": {
+          "type": "string",
+          "description": "本地图片绝对路径"
+        },
+        "filePath": {
+          "type": "string",
+          "description": "PDF 或其他文件路径"
+        },
+        "sourceType": {
+          "type": "string",
+          "description": "pdf | screenshot | wechat | lecture | manual | other"
+        },
+        "uploader": {
+          "type": "string"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "hasImage": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        },
+        "nextStep": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "structure_problem": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "已有草稿 id，不传则新建"
+        },
+        "stem": {
+          "type": "string",
+          "description": "题面（Markdown + KaTeX）"
+        },
+        "solution": {
+          "type": "string",
+          "description": "解析"
+        },
+        "knowledgePoints": {
+          "type": "array",
+          "description": "扁平知识点（兼容旧用法，建议同时用 attach_subgraph）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "difficulty": {
+          "type": "number",
+          "description": "难度 1-5"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "abilityLevels": {
+          "type": "array",
+          "description": "能力层级：识记/理解/应用/分析/综合/评价/运算/推理/建模/直观想象",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sourceType": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "stem",
+        "solution"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "version": {
+          "type": "number"
+        },
+        "difficulty": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "revise_problem": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "stem": {
+          "type": "string"
+        },
+        "solution": {
+          "type": "string"
+        },
+        "knowledgePoints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "difficulty": {
+          "type": "number"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "abilityLevels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string"
+        },
+        "updatedFields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "kg_add_node": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "稳定知识点 ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "显示名称"
+        },
+        "subject": {
+          "type": "string",
+          "description": "学科，如 数学"
+        },
+        "grade": {
+          "type": "string",
+          "description": "年级"
+        },
+        "semester": {
+          "type": "string"
+        },
+        "curriculumRef": {
+          "type": "string",
+          "description": "课标条目"
+        },
+        "typicalErrors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "kg_add_relation": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "description": "prerequisite | part-of | equivalence | contrast | application"
+        },
+        "note": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "type"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "kg_add_technique": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "如 TECH-PROJ-LINE、TECH-COMPLETE-SQUARE"
+        },
+        "name": {
+          "type": "string",
+          "description": "显示名"
+        },
+        "idea": {
+          "type": "string",
+          "description": "核心思想一句话"
+        },
+        "typicalMoves": {
+          "type": "array",
+          "description": "典型关键动作",
+          "items": {
+            "type": "string"
+          }
+        },
+        "domains": {
+          "type": "array",
+          "description": "适用主题提示",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exemplarNote": {
+          "type": "string",
+          "description": "何谓同技巧的说明"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "idea"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "attach_subgraph": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "题目 id"
+        },
+        "main": {
+          "type": "string",
+          "description": "主知识点 ID"
+        },
+        "supporting": {
+          "type": "array",
+          "description": "支撑知识点 ID 列表",
+          "items": {
+            "type": "string"
+          }
+        },
+        "abilities": {
+          "type": "array",
+          "description": "能力层级列表",
+          "items": {
+            "type": "string"
+          }
+        },
+        "intent": {
+          "type": "string",
+          "description": "考察意图简述"
+        },
+        "pathSummary": {
+          "type": "string",
+          "description": "知识路径简述"
+        }
+      },
+      "required": [
+        "id",
+        "main"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "main": {
+          "type": "string"
+        },
+        "supporting": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "abilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "attach_skeleton": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "patternId": {
+          "type": "string",
+          "description": "稳定骨架ID，如 ABS-RATIONAL-RANGE、TRIG-SUM-TO-PRODUCT"
+        },
+        "keyMoves": {
+          "type": "array",
+          "description": "关键变形：分段讨论/换元/平方求和/积化和差/构造辅助量/…",
+          "items": {
+            "type": "string"
+          }
+        },
+        "conditionStructure": {
+          "type": "string",
+          "description": "条件结构，如「双和条件→求和角正弦」"
+        },
+        "answerType": {
+          "type": "string",
+          "description": "数值|区间|表达式|参数范围|证明|存在性|计数|概率|其他"
+        },
+        "estimatedSteps": {
+          "type": "number",
+          "description": "预估推理步数，≥3 表示多步耦合"
+        },
+        "requiresCoupling": {
+          "type": "boolean",
+          "description": "是否要求多知识点在关键一步耦合"
+        }
+      },
+      "required": [
+        "id",
+        "patternId",
+        "keyMoves",
+        "conditionStructure",
+        "answerType"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "patternId": {
+          "type": "string"
+        },
+        "keyMoves": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "answerType": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "attach_techniques": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "techniqueIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "techniqueIds"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "techniques": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "record_variation_intent": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "候选题 id"
+        },
+        "variationType": {
+          "type": "string",
+          "description": "original 原始题 / isomorphic 同构（保持深度换表述）/ structural 结构（换结构保思想）/ harder 增难（新增障碍）/ extension 拓展（推广或研究边界）/ simplified 降难（不计为创新，默认禁止）",
+          "enum": [
+            "original",
+            "isomorphic",
+            "structural",
+            "harder",
+            "extension",
+            "simplified"
+          ]
+        },
+        "originalProblemId": {
+          "type": "string",
+          "description": "原题 id（非 original 必填）"
+        },
+        "target": {
+          "type": "string",
+          "description": "本次变式目标：保持难度 / 增加难度 / 结构迁移 / 推广"
+        },
+        "coreClaim": {
+          "type": "string",
+          "description": "核心结论"
+        },
+        "keyTechniques": {
+          "type": "array",
+          "description": "关键技巧（Technique id 或一句话）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hardestStep": {
+          "type": "string",
+          "description": "最难的一步：要想到什么（不要只写步数）"
+        },
+        "generality": {
+          "type": "string",
+          "description": "一般性：general-n 对任意 n / finite-case 有限情形 / single-instance 单例",
+          "enum": [
+            "general-n",
+            "finite-case",
+            "single-instance"
+          ]
+        },
+        "proofObligations": {
+          "type": "array",
+          "description": "必须完成的证明义务",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "variationType",
+        "coreClaim",
+        "hardestStep",
+        "generality"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "variationType": {
+          "type": "string"
+        },
+        "originalProblemId": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "generality": {
+          "type": "string"
+        },
+        "originalGenerality": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "audit_variation": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "preserved": {
+          "type": "array",
+          "description": "保留了什么核心难点（至少一条，要具体）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "added": {
+          "type": "array",
+          "description": "新增了什么推理障碍（harder/structural/extension 必填）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "weakened": {
+          "type": "array",
+          "description": "削弱了什么（非 simplified 必须为空）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "conditionsCompatible": {
+          "type": "boolean"
+        },
+        "solutionExists": {
+          "type": "boolean"
+        },
+        "boundaryChecked": {
+          "type": "boolean"
+        },
+        "proofComplete": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string",
+          "description": "求解与核验记录"
+        }
+      },
+      "required": [
+        "id",
+        "preserved",
+        "conditionsCompatible",
+        "solutionExists",
+        "boundaryChecked",
+        "proofComplete"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "passed": {
+                "type": "boolean"
+              },
+              "detail": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "nextAction": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "check_near_duplicates": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "main": {
+          "type": "string"
+        },
+        "supporting": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "abilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "patternId": {
+          "type": "string",
+          "description": "候选题的骨架 ID（强烈建议提供，否则无法一票否决）"
+        },
+        "keyMoves": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "conditionStructure": {
+          "type": "string"
+        },
+        "answerType": {
+          "type": "string"
+        },
+        "threshold": {
+          "type": "number",
+          "description": "相似度阈值，默认配置值"
+        }
+      },
+      "required": [
+        "main"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "number"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "problemId": {
+                "type": "string"
+              },
+              "score": {
+                "type": "number"
+              },
+              "mainMatch": {
+                "type": "boolean"
+              },
+              "patternIdSame": {
+                "type": "boolean"
+              },
+              "vetoReason": {
+                "type": "string"
+              },
+              "isNearDuplicate": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "sample_for_generation": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "main": {
+          "type": "string",
+          "description": "目标主知识点 ID"
+        },
+        "maxSupporting": {
+          "type": "number"
+        },
+        "abilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "negativeTopK": {
+          "type": "number"
+        },
+        "minEstimatedSteps": {
+          "type": "number",
+          "description": "最低推理步数，默认 2"
+        },
+        "preferMigration": {
+          "type": "string",
+          "description": "contrast | application | auto"
+        }
+      },
+      "required": [
+        "main"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "main": {
+          "type": "string"
+        },
+        "supporting": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "abilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prerequisites": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "contrastPoints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "applicationTargets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggestedDifficulty": {
+          "type": "number"
+        },
+        "pathSummary": {
+          "type": "string"
+        },
+        "negativePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbiddenPatternIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hardConstraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggestedPatternHint": {
+          "type": "string"
+        },
+        "minEstimatedSteps": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "sample_by_technique": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "techniqueId": {
+          "type": "string"
+        },
+        "main": {
+          "type": "string",
+          "description": "可选主知识点（跨章节包装）"
+        },
+        "abilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "minEstimatedSteps": {
+          "type": "number"
+        },
+        "operator": {
+          "type": "string",
+          "description": "transfer_domain | change_goal | couple | inverse | critical"
+        },
+        "secondaryTechniqueId": {
+          "type": "string",
+          "description": "第二技巧；operator=couple 时建议提供"
+        }
+      },
+      "required": [
+        "techniqueId"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "pathSummary": {
+          "type": "string"
+        },
+        "forbiddenPatternIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hardConstraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "techniqueMode": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  },
+  "sample_technique_combo": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "primaryTechniqueId": {
+          "type": "string"
+        },
+        "secondaryTechniqueId": {
+          "type": "string"
+        },
+        "main": {
+          "type": "string"
+        },
+        "abilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "minEstimatedSteps": {
+          "type": "number",
+          "description": "默认 4"
+        }
+      },
+      "required": [
+        "primaryTechniqueId",
+        "secondaryTechniqueId"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "pathSummary": {
+          "type": "string"
+        },
+        "hardConstraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "techniqueMode": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  },
+  "plan_technique_batch": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "techniqueIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "operator": {
+          "type": "string"
+        },
+        "main": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "techniqueIds"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "count": {
+          "type": "number"
+        },
+        "summaries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "review_innovation": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "forbiddenPatternIds": {
+          "type": "array",
+          "description": "来自采样结果的禁止列表（可选）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "minEstimatedSteps": {
+          "type": "number"
+        },
+        "primaryTechniqueId": {
+          "type": "string"
+        },
+        "secondaryTechniqueId": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "problemId"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "passAuto": {
+          "type": "boolean"
+        },
+        "humanGateQuestions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "submit_for_review": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "review_problem": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "decision": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "reviewer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "decision"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "decision": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "commit_problem": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "version": {
+          "type": "number"
+        },
+        "gitOk": {
+          "type": "boolean"
+        },
+        "gitDetail": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "get_problem": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "stem": {
+          "type": "string"
+        },
+        "solution": {
+          "type": "string"
+        },
+        "knowledgePoints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "difficulty": {
+          "type": "number"
+        },
+        "subgraph": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "version": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "search_problems": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "keyword": {
+          "type": "string"
+        },
+        "knowledgePoint": {
+          "type": "string"
+        },
+        "difficulty": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "ability": {
+          "type": "string"
+        },
+        "mainKnowledge": {
+          "type": "string",
+          "description": "主知识点必须匹配"
+        },
+        "mustIncludeSupporting": {
+          "type": "array",
+          "description": "必须包含的支撑知识点",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excludeKnowledge": {
+          "type": "array",
+          "description": "排除的知识点",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limit": {
+          "type": "number"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "total": {
+          "type": "number"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "difficulty": {
+                "type": "number"
+              },
+              "main": {
+                "type": "string"
+              },
+              "stemPreview": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "link_problem": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "lectureIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "backgroundArticleIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "relatedProblemIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "links": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  },
+  "analyze_paper_style": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "风格名称，如「中科大少年班2018-2024」"
+        },
+        "problemIds": {
+          "type": "array",
+          "description": "用于分析的题目 id 列表",
+          "items": {
+            "type": "string"
+          }
+        },
+        "styleId": {
+          "type": "string",
+          "description": "可选自定义风格 id"
+        }
+      },
+      "required": [
+        "name",
+        "problemIds"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "styleId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "totalQuestions": {
+          "type": "number"
+        },
+        "difficultyDistribution": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "topMains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "styleNotes": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "plan_mock_paper": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "styleProfileId": {
+          "type": "string",
+          "description": "analyze_paper_style 返回的 styleId"
+        },
+        "paperTitle": {
+          "type": "string",
+          "description": "模拟卷标题"
+        },
+        "questionCount": {
+          "type": "number",
+          "description": "题量，默认与风格画像一致"
+        },
+        "preferMains": {
+          "type": "array",
+          "description": "优先使用的主知识点 id 列表（可选）",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "styleProfileId"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "paperId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "slotCount": {
+          "type": "number"
+        },
+        "overallGuidance": {
+          "type": "string"
+        },
+        "slots": {
+          "type": "array"
+        }
+      }
+    }
+  },
+  "fill_paper_slot": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "paperId": {
+          "type": "string"
+        },
+        "order": {
+          "type": "number",
+          "description": "题号/槽位序号"
+        },
+        "problemId": {
+          "type": "string"
+        },
+        "force": {
+          "type": "boolean",
+          "description": "难度硬约束不满足时强行填入（必须同时给 reason）"
+        },
+        "reason": {
+          "type": "string",
+          "description": "强行填入的理由，会记录在试卷槽位上"
+        }
+      },
+      "required": [
+        "paperId",
+        "order",
+        "problemId"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "paperId": {
+          "type": "string"
+        },
+        "order": {
+          "type": "number"
+        },
+        "problemId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "filled": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "get_paper": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "paperId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "paperId"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "slots": {
+          "type": "array"
+        }
+      }
+    }
+  },
+  "add_solution": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "description": "解法标题，如「换元法」"
+        },
+        "approach": {
+          "type": "string",
+          "description": "algebraic | geometric | analytic | combinatorial | synthetic | other"
+        },
+        "keyIdea": {
+          "type": "string",
+          "description": "这条路线的核心想法（一两句）"
+        },
+        "techniqueIds": {
+          "type": "array",
+          "description": "用到的技巧 id"
+        },
+        "body": {
+          "type": "string",
+          "description": "完整解法正文（Markdown）"
+        },
+        "steps": {
+          "type": "array",
+          "description": "结构化步骤 [{order, statement, justification?}]"
+        },
+        "setAsPrimary": {
+          "type": "boolean",
+          "description": "是否设为主解法"
+        }
+      },
+      "required": [
+        "problemId",
+        "title",
+        "approach",
+        "keyIdea"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "solutionId": {
+          "type": "string"
+        },
+        "primarySolutionId": {
+          "type": "string"
+        },
+        "total": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "update_solution": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "solutionId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "keyIdea": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "steps": {
+          "type": "array"
+        },
+        "verificationStatus": {
+          "type": "string",
+          "description": "unverified | reviewed | verified"
+        },
+        "verificationNotes": {
+          "type": "string"
+        },
+        "reviewer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "problemId",
+        "solutionId"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "solutionId": {
+          "type": "string"
+        },
+        "verification": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "remove_solution": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "solutionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "problemId",
+        "solutionId"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "removed": {
+          "type": "string"
+        },
+        "primarySolutionId": {
+          "type": "string"
+        },
+        "total": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "set_primary_solution": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "solutionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "problemId",
+        "solutionId"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "primarySolutionId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "kg_validate_graph": {
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "kg_get_neighbors": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "nodeId": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "description": "只看某一类关系，如 prerequisite"
+        },
+        "layer": {
+          "type": "string",
+          "description": "learning | mathematical"
+        },
+        "direction": {
+          "type": "string",
+          "description": "out | in | both（默认 both）"
+        }
+      },
+      "required": [
+        "nodeId"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "nodeId": {
+          "type": "string"
+        },
+        "neighbors": {
+          "type": "array"
+        },
+        "count": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "kg_get_prerequisites": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "nodeId": {
+          "type": "string"
+        },
+        "maxDepth": {
+          "type": "number",
+          "description": "默认 2"
+        }
+      },
+      "required": [
+        "nodeId"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "nodeId": {
+          "type": "string"
+        },
+        "prerequisites": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "count": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "kg_find_related_concepts": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "nodeId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "number",
+          "description": "默认 10"
+        }
+      },
+      "required": [
+        "nodeId"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "nodeId": {
+          "type": "string"
+        },
+        "related": {
+          "type": "array"
+        },
+        "count": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "kg_find_learning_path": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "maxDepth": {
+          "type": "number",
+          "description": "默认 8"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "found": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "get_difficulty_rubric": {
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rubricVersion": {
+          "type": "number"
+        },
+        "dimensions": {
+          "type": "array"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "assess_problem_difficulty": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "conceptual": {
+          "type": "number",
+          "description": "概念理解 1–5"
+        },
+        "technical": {
+          "type": "number",
+          "description": "技巧执行 1–5"
+        },
+        "proofDepth": {
+          "type": "number",
+          "description": "证明深度 1–5"
+        },
+        "prerequisiteLoad": {
+          "type": "number",
+          "description": "前置负担 1–5"
+        },
+        "ingenuity": {
+          "type": "number",
+          "description": "洞察难度 1–5"
+        },
+        "generality": {
+          "type": "number",
+          "description": "一般性 1–5"
+        },
+        "conceptualNote": {
+          "type": "string",
+          "description": "概念维度的理由"
+        },
+        "technicalNote": {
+          "type": "string"
+        },
+        "proofDepthNote": {
+          "type": "string"
+        },
+        "prerequisiteLoadNote": {
+          "type": "string"
+        },
+        "ingenuityNote": {
+          "type": "string"
+        },
+        "generalityNote": {
+          "type": "string"
+        },
+        "overall": {
+          "type": "number",
+          "description": "总难度 1–5（可选）"
+        },
+        "assessedBy": {
+          "type": "string",
+          "description": "human | model | empirical，默认 model"
+        }
+      },
+      "required": [
+        "problemId",
+        "conceptual",
+        "technical",
+        "proofDepth",
+        "prerequisiteLoad",
+        "ingenuity",
+        "generality"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "overall": {
+          "type": "number"
+        },
+        "reviewStatus": {
+          "type": "string"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "update_difficulty_profile": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "dimension": {
+          "type": "string",
+          "description": "conceptual | technical | proofDepth | prerequisiteLoad | ingenuity | generality"
+        },
+        "rating": {
+          "type": "number",
+          "description": "1–5"
+        },
+        "rationale": {
+          "type": "string",
+          "description": "这一维的打分理由"
+        }
+      },
+      "required": [
+        "problemId",
+        "dimension",
+        "rating"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "dimension": {
+          "type": "string"
+        },
+        "rating": {
+          "type": "number"
+        },
+        "reviewStatus": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "review_difficulty_profile": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "approve": {
+          "type": "boolean"
+        },
+        "reviewer": {
+          "type": "string",
+          "description": "审核人，默认 human"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "problemId",
+        "approve"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "problemId": {
+          "type": "string"
+        },
+        "reviewStatus": {
+          "type": "string"
+        },
+        "reviewedBy": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "compare_problem_difficulty": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "a": {
+          "type": "string",
+          "description": "原题 id"
+        },
+        "b": {
+          "type": "string",
+          "description": "变式 id"
+        }
+      },
+      "required": [
+        "a",
+        "b"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "a": {
+          "type": "string"
+        },
+        "b": {
+          "type": "string"
+        },
+        "totalDelta": {
+          "type": "number"
+        },
+        "lower": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "migrate_bank": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "dryRun": {
+          "type": "boolean",
+          "description": "默认 true"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dryRun": {
+          "type": "boolean"
+        },
+        "scanned": {
+          "type": "number"
+        },
+        "migrated": {
+          "type": "number"
+        },
+        "skipped": {
+          "type": "number"
+        },
+        "failed": {
+          "type": "number"
+        },
+        "unresolvedRelations": {
+          "type": "number"
+        },
+        "backupId": {
+          "type": "string"
+        },
+        "reportPath": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

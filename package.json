@@ -1,6 +1,6 @@
 {
   "name": "dsh-problem-bank",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Structured Problem Intelligence: multi-solution, knowledge graph v2, six-dimensional difficulty for DeepSeek Harness",
   "type": "module",
   "main": "lib/index.js",
@@ -35,7 +35,9 @@
     "pack:check": "node scripts/pack-check.mjs",
     "test:gate": "node scripts/variation-gate-smoke.mjs",
     "test:solutions": "node scripts/multi-solution-smoke.mjs",
-    "test:intel": "node scripts/intelligence-smoke.mjs"
+    "test:intel": "node scripts/intelligence-smoke.mjs",
+    "test:install": "node scripts/install-smoke.mjs",
+    "build:schemas": "node scripts/build-tool-schemas.mjs"
   },
   "keywords": [
     "dsh",
