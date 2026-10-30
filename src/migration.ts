@@ -51,6 +51,15 @@ function schemaVersionOf(raw: string): number {
 }
 
 /** 旧 schema 的写法：把等价关系当普通关系，没有 layer / evidenceStatus */
+/** 迁移时无法自动判定的边。字段拆开存，避免把 from/to 拼成一行。 */
+interface UnresolvedRelation {
+  id?: string
+  from?: string
+  to?: string
+  type?: string
+  reason: string
+}
+
 interface RawRelation {
   id?: string
   from?: string
@@ -64,7 +73,7 @@ interface RawRelation {
 async function normalizeRelations(
   bankRoot: string,
   backupDir: string,
-): Promise<{ unresolved: RawRelation[]; normalized: number }> {
+): Promise<{ unresolved: UnresolvedRelation[]; normalized: number }> {
   const relPath = path.join(bankRoot, 'kg', 'relations.json')
   let relations: RawRelation[]
   try {
@@ -74,7 +83,7 @@ async function normalizeRelations(
   }
 
   // 备份已在 copyDir 阶段完成，这里只做标注，不删除任何边
-  const unresolved: RawRelation[] = []
+  const unresolved: UnresolvedRelation[] = []
   let normalized = 0
   const LEGACY_EQUIV = 'equivalence'
   for (const r of relations) {
@@ -83,13 +92,25 @@ async function normalizeRelations(
       // 旧「equivalence」语义不明：保留边，但标记为待分类，不假设它是严格数学等价
       r.layer = 'learning'
       r.evidenceStatus = 'unreviewed'
-      unresolved.push(r)
+      unresolved.push({
+        id: r.id,
+        from: r.from,
+        to: r.to,
+        type: r.type,
+        reason: "legacy equivalence：旧等价边语义不明，保留待人工分类",
+      })
       changed = true
     }
     if (r.layer === 'mathematical' && !r.evidenceStatus) {
       // 数学关系必须有证据状态，缺了就降级为未审
       r.evidenceStatus = 'unreviewed'
-      unresolved.push(r)
+      unresolved.push({
+        id: r.id,
+        from: r.from,
+        to: r.to,
+        type: r.type,
+        reason: "数学关系缺少证据状态，已降级为 unreviewed",
+      })
       changed = true
     }
     if (changed) normalized += 1
@@ -179,7 +200,7 @@ export async function migrateBank(
     }
   }
 
-  let unresolved: RawRelation[] = []
+  let unresolved: UnresolvedRelation[] = []
   if (!dryRun) {
     const rel = await normalizeRelations(bankRoot, backupDir)
     unresolved = rel.unresolved

@@ -18,6 +18,8 @@ const ctx = {
   effect: (fn) => fn(),
   emit() {},
   tools: { register: (t) => tools.set(t.name, t) },
+  systemPrompt: { section: (sec) => { ctx.sections.push(sec); return () => {} } },
+  sections: [],
 }
 const mod = await import('dsh-problem-bank')
 await mod.apply(ctx, { bankRoot: './install-smoke-bank' })
@@ -32,6 +34,12 @@ for (const [name, t] of tools) {
   if (!t.output || !t.output.schema) problems.push(name + ' 缺少 output.schema')
 }
 if (info.techniquesSeeded !== 30) problems.push('种子技巧应为 30，实际 ' + info.techniquesSeeded)
+if (ctx.sections.length !== 1) problems.push('应注入 1 个系统提示段落，实际 ' + ctx.sections.length)
+else {
+  const text = ctx.sections[0].text
+  if (typeof text !== 'string' || text.length > 1200) problems.push('提示摘要应短于 1200 字，实际 ' + String(text).length)
+  if (!text.includes('audit_variation')) problems.push('提示摘要应提到 audit_variation')
+}
 const d = await bank.createDraft({ stem: '安装冒烟', solution: '解', sourceType: 'manual', uploader: 'smoke' })
 if (!d.id) problems.push('createDraft 没有返回 id')
 if (problems.length) { console.error(problems.join('; ')); process.exit(1) }

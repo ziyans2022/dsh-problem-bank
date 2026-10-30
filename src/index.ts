@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs'
 import type { Context } from '@deepseek-ai/cordis'
 import { ProblemBankService, type ProblemBankConfig } from './service.js'
 import { migrateBank } from './migration.js'
+import { PROMPT_ORDER, PROMPT_SECTION, promptText } from './prompt.js'
 import { rubricSummary } from './difficulty.js'
 import type {
   RawInput,
@@ -2451,6 +2452,16 @@ export function apply(ctx: Context, rawConfig: Config) {
       },
     }),
   )
+
+  // 往系统提示里加一段摘要。systemPrompt 是可选服务：拿不到就静默跳过，
+  // 免得插件因为一个非关键能力缺失而整体加载失败。
+  const systemPrompt = (ctx as unknown as { systemPrompt?: { section?: (s: unknown) => () => void } })
+    .systemPrompt
+  if (typeof systemPrompt?.section === 'function') {
+    ctx.effect(() =>
+      systemPrompt.section!({ name: PROMPT_SECTION, order: PROMPT_ORDER, text: promptText() }),
+    )
+  }
 
   // 不依赖可能不存在的 ready 事件；插件激活时 effect 初始化
   ctx.effect(() => {

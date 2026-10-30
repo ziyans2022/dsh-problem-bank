@@ -269,6 +269,16 @@ assert.ok(
   '应生成备份',
 )
 ok(`迁移完成，备份 ${real.backupId}`)
+// unresolved-relations.json 里每条要能按字段直接读取，不能把 from/to 拼成一行
+const unresolvedRaw = await fs.readFile(real.unresolvedPath, 'utf8')
+const unresolved = JSON.parse(unresolvedRaw)
+assert.equal(unresolved.length, 1, '等价边应记为待分类')
+assert.equal(unresolved[0].from, 'KP-X')
+assert.equal(unresolved[0].to, 'KP-Y')
+assert.equal(unresolved[0].type, 'equivalence')
+assert.ok(unresolved[0].reason && unresolved[0].reason.length > 4, '每条要带原因')
+ok('unresolved-relations 按字段落盘')
+
 
 const again = await migrateBank(v5root)
 assert.equal(again.migrated, 0, '二次迁移应幂等')

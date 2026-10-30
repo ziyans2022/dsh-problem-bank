@@ -2,6 +2,21 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。早期版本（0.5.x）是快速迭代期，行为变更多；0.6.0 起的数据格式有 schema 版本号，升级路径见各条目的「升级」。
 
+## [0.6.2] — 2026-10-30
+
+### 新增
+
+- **系统提示注入**：插件激活时通过 `ctx.systemPrompt.section()` 往系统提示里加一段约 300 字的摘要（`src/prompt.ts`，段名 `problem-bank`，排序 120）：出题七步的调用顺序、三条硬规则、以及「把一般性问题截成特例会被质量门拒绝」。`SYSTEM_PROMPT.md` 不再是随包放着没人读的文档，但也不会被整篇注入——固定成本要控制。
+- `systemPrompt` 是可选服务，拿不到时静默跳过，不影响工具注册（`install-smoke` 覆盖两条路径）。
+
+### 变更
+
+- `unresolved-relations.json` 的每条边从「原样透传旧关系对象」改为显式 `{ id, from, to, type, reason }`：字段拆开，不再依赖 `from→to` 这种拼接；`reason` 说明为什么没能自动判定。
+
+### 开发提示
+
+- `apply()` 本身不返回值——工具与提示段落都是通过 `ctx` 注册的副作用。`withDefaults()` 里的 `return merged` 是内部辅助函数的返回，不是 `apply()` 的。
+
 ## [0.6.1] — 2026-10-30
 
 ### 修复

@@ -303,6 +303,12 @@ problem-bank-data/
 | `compare_problem_difficulty` | 逐维比较两道题（给出每维差值，不做加权平均）。用于检查「变式是不是变简单了」 | a*:string, b*:string |
 | `migrate_bank` | 把 v5 题库迁移到 v6（多解法 / 六维难度 / 关系分层）。默认先 dryRun 看影响面。迁移前自动备份，可 rollback。不自动生成解法、不自动推测难度、不自动创建关系 | dryRun:boolean |
 
+## 模型会看到什么
+
+插件激活时会往系统提示里注入一段约 300 字的摘要（`src/prompt.ts`）：出题七步的调用顺序、三条硬规则、以及「一般性问题截成特例会被拒绝」。**不会**把 `SYSTEM_PROMPT.md` 全文塞进去——那会把 42 个工具 schema 之外的固定成本再抬高一截。完整说明在仓库根目录的 `SYSTEM_PROMPT.md`，供人阅读。
+
+`systemPrompt` 拿不到时（例如独立跑测试）注入会静默跳过，不影响工具注册。
+
 ## 一次完整的变式出题
 
 1. `sample_by_technique` / `sample_for_generation` —— 拿到硬约束、禁止的 patternId、迁移说明模板、变式契约（`variationContract`）
