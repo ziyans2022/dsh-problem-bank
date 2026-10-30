@@ -1,4 +1,4 @@
-# problem-bank v0.5.12 系统提示
+# problem-bank v0.6.0 系统提示
 
 目标：用**技巧**驱动创新，而不是整卷换皮。
 
@@ -68,8 +68,19 @@ plan_technique_batch({
 })
 ```
 
+### 8. 一题多解、六维难度、图谱分层
+
+出完题后，若确实有第二条不同的思路，用 `add_solution` 另存，再用 `set_primary_solution` 指定主解法。每条解法的 `verification.status` 是独立的（`unverified` / `reviewed` / `verified`），写一段文字不会把它变成「已验证」。
+
+难度用 `assess_problem_difficulty` 打六维（概念 / 技巧 / 证明深度 / 前置负担 / 洞察 / 一般性），每维必须写理由。模型给出的评分一律是 `pending`，人工确认走 `review_difficulty_profile`。入库前用 `compare_problem_difficulty` 逐维对比原题，任何一维明显下降都要在 target 里解释。
+
+知识关系分 `learning`（prerequisite / part-of / …）与 `mathematical`（equivalent / implies / generalizes / …）两层，数学关系必须给 `evidenceStatus`。改完图谱跑一次 `kg_validate_graph`，成环、重复边、端点缺失会在提交前暴露。
+
 ## 字段
 
 - `exemplarNote`：典型范例说明（不是 exampleNote）  
 - `patternId`：骨架，管换皮  
-- `techniqueId`：思路，管创新锚点  
+- `techniqueId`：思路，管创新锚点
+- `variationType`：original / isomorphic / structural / harder / extension / simplified
+- `difficultyProfile`：六维难度剖面，每维带 rationale
+- `solutions`：非主解法列表，正文以 `## 解法 SOL-xxx — 标题` 存在

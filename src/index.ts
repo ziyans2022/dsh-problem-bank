@@ -12,6 +12,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import Schema from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { ProblemBankService, type ProblemBankConfig } from './service.js'
+import { migrateBank } from './migration.js'
+import { rubricSummary } from './difficulty.js'
 import type {
   RawInput,
   SearchQuery,
@@ -58,6 +60,11 @@ export const Config: any = Schema.object({
     .default(true)
     .description(
       '是否强制变式质量门：入库前必须声明变式类型并通过 audit_variation（关闭后旧题库可直接 commit）',
+    ),
+  requireInnovationReview: Schema.boolean()
+    .default(true)
+    .description(
+      '入库前是否必须通过创新审核（关闭后 commit 不再要求 innovation 记录，但人工审核与内容哈希校验仍生效）',
     ),
   allowSimplified: Schema.boolean()
     .default(false)
@@ -1589,6 +1596,11 @@ export function apply(ctx: Context, config: Config) {
         paperId: { type: 'string', required: true },
         order: { type: 'number', required: true, description: '题号/槽位序号' },
         problemId: { type: 'string', required: true },
+        force: {
+          type: 'boolean',
+          description: '难度硬约束不满足时强行填入（必须同时给 reason）',
+        },
+        reason: { type: 'string', description: '强行填入的理由，会记录在试卷槽位上' },
       },
       output: {
         schema: {
@@ -1600,22 +1612,27 @@ export function apply(ctx: Context, config: Config) {
             status: { type: 'string' },
             filled: { type: 'number' },
             total: { type: 'number' },
+            warnings: { type: 'array', items: { type: 'string' } },
           },
           additionalProperties: false,
         },
         render: (_a, v) => [
           {
             type: 'text',
-            text: `试卷 ${v.paperId} 第 ${v.order} 题已填入 ${v.problemId}（${v.filled}/${v.total}），状态 ${v.status}`,
+            text:
+              `试卷 ${v.paperId} 第 ${v.order} 题已填入 ${v.problemId}（${v.filled}/${v.total}），状态 ${v.status}` +
+              ((v.warnings as string[]).length ? '\n' + (v.warnings as string[]).join('\n') : ''),
           },
         ],
       },
       async execute(args) {
-        const paper = await bank.fillPaperSlot(
+        const filled0 = await bank.fillPaperSlot(
           args.paperId as string,
           args.order as number,
           args.problemId as string,
+          { force: args.force as boolean | undefined, reason: args.reason as string | undefined },
         )
+        const paper = filled0.paper
         const filled = paper.slots.filter((s) => s.problemId).length
         return {
           paperId: paper.id,
@@ -1624,6 +1641,7 @@ export function apply(ctx: Context, config: Config) {
           status: paper.status,
           filled,
           total: paper.slots.length,
+          warnings: filled0.warnings,
         }
       },
     }),
@@ -1678,13 +1696,709 @@ export function apply(ctx: Context, config: Config) {
     }),
   )
 
+// v0.6.0 新增工具注册块（插入到 index.ts 的 ctx.effect 之前）
+  // ==================== 多解法（模块 A） ====================
+
+  ctx.tools.register(
+    defineTool({
+      name: 'add_solution',
+      description:
+        '为题目追加一条解法。同一题可以有多条独立解法（代数/几何/解析/组合…），各自有独立的审核状态。第一条解法自动成为主解法。',
+      parameters: {
+        problemId: { type: 'string', required: true },
+        title: { type: 'string', required: true, description: '解法标题，如「换元法」' },
+        approach: {
+          type: 'string',
+          required: true,
+          description: 'algebraic | geometric | analytic | combinatorial | synthetic | other',
+        },
+        keyIdea: { type: 'string', required: true, description: '这条路线的核心想法（一两句）' },
+        techniqueIds: { type: 'array', description: '用到的技巧 id' },
+        body: { type: 'string', description: '完整解法正文（Markdown）' },
+        steps: { type: 'array', description: '结构化步骤 [{order, statement, justification?}]' },
+        setAsPrimary: { type: 'boolean', description: '是否设为主解法' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            problemId: { type: 'string' },
+            solutionId: { type: 'string' },
+            primarySolutionId: { type: 'string' },
+            total: { type: 'number' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [
+          {
+            type: 'text',
+            text: `已加入解法 ${v.solutionId}（主解法 ${v.primarySolutionId}，共 ${v.total} 条）`,
+          },
+        ],
+      },
+      async execute(args) {
+        const p = await bank.addSolution(args.problemId as string, {
+          title: args.title as string,
+          approach: args.approach as any,
+          keyIdea: args.keyIdea as string,
+          techniqueIds: (args.techniqueIds as string[]) ?? [],
+          body: args.body as string | undefined,
+          steps: (args.steps as any[]) ?? [],
+          verification: { status: 'unverified' },
+        })
+        if (args.setAsPrimary) {
+          const sols = p.content.solutions ?? []
+          const last = sols[sols.length - 1]
+          await bank.setPrimarySolution(args.problemId as string, last.id)
+        }
+        return {
+          problemId: p.id,
+          solutionId: (p.content.solutions ?? []).slice(-1)[0]?.id ?? '',
+          primarySolutionId: p.content.primarySolutionId ?? '',
+          total: (p.content.solutions ?? []).length,
+        }
+      },
+    }),
+  )
+
+  ctx.tools.register(
+    defineTool({
+      name: 'update_solution',
+      description:
+        '修改某条解法的内容或审核状态。改动正文会把审核状态打回 unverified（除非显式传 verificationStatus）。',
+      parameters: {
+        problemId: { type: 'string', required: true },
+        solutionId: { type: 'string', required: true },
+        title: { type: 'string' },
+        keyIdea: { type: 'string' },
+        body: { type: 'string' },
+        steps: { type: 'array' },
+        verificationStatus: {
+          type: 'string',
+          description: 'unverified | reviewed | verified',
+        },
+        verificationNotes: { type: 'string' },
+        reviewer: { type: 'string' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            problemId: { type: 'string' },
+            solutionId: { type: 'string' },
+            verification: { type: 'string' },
+            summary: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [{ type: 'text', text: v.summary }],
+      },
+      async execute(args) {
+        const patch: any = {}
+        if (args.title) patch.title = args.title
+        if (args.keyIdea) patch.keyIdea = args.keyIdea
+        if (args.body !== undefined) patch.body = args.body
+        if (args.steps) patch.steps = args.steps
+        if (args.verificationStatus) {
+          patch.verification = {
+            status: args.verificationStatus,
+            reviewer: args.reviewer,
+            notes: args.verificationNotes,
+            checkedAt: new Date().toISOString(),
+          }
+        }
+        const p = await bank.updateSolution(
+          args.problemId as string,
+          args.solutionId as string,
+          patch,
+        )
+        const sol = (p.content.solutions ?? []).find((s) => s.id === args.solutionId)
+        const summary = `解法 ${args.solutionId} 已更新；状态 ${sol?.verification?.status ?? 'unverified'}；共 ${(p.content.solutions ?? []).length} 条解法`
+        return {
+          problemId: p.id,
+          solutionId: args.solutionId as string,
+          verification: sol?.verification?.status ?? 'unverified',
+          summary,
+        }
+      },
+    }),
+  )
+
+  ctx.tools.register(
+    defineTool({
+      name: 'remove_solution',
+      description: '删除一条解法。删掉主解法时会把下一条提升为主解法；若一条不剩会保留 legacy 主解法。',
+      parameters: {
+        problemId: { type: 'string', required: true },
+        solutionId: { type: 'string', required: true },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            problemId: { type: 'string' },
+            removed: { type: 'string' },
+            primarySolutionId: { type: 'string' },
+            total: { type: 'number' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [
+          {
+            type: 'text',
+            text: `已删除 ${v.removed}；当前主解法 ${v.primarySolutionId}，剩余 ${v.total} 条`,
+          },
+        ],
+      },
+      async execute(args) {
+        const p = await bank.removeSolution(
+          args.problemId as string,
+          args.solutionId as string,
+        )
+        return {
+          problemId: p.id,
+          removed: args.solutionId as string,
+          primarySolutionId: p.content.primarySolutionId ?? '',
+          total: (p.content.solutions ?? []).length,
+        }
+      },
+    }),
+  )
+
+  ctx.tools.register(
+    defineTool({
+      name: 'set_primary_solution',
+      description: '切换主解法。主解法会被同步到旧的 solution 字段，保证兼容只读 solution 的调用方。',
+      parameters: {
+        problemId: { type: 'string', required: true },
+        solutionId: { type: 'string', required: true },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            problemId: { type: 'string' },
+            primarySolutionId: { type: 'string' },
+            title: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [
+          { type: 'text', text: `主解法已切换为 ${v.primarySolutionId}（${v.title}）` },
+        ],
+      },
+      async execute(args) {
+        const p = await bank.setPrimarySolution(
+          args.problemId as string,
+          args.solutionId as string,
+        )
+        const sol = (p.content.solutions ?? []).find(
+          (s) => s.id === p.content.primarySolutionId,
+        )
+        return {
+          problemId: p.id,
+          primarySolutionId: p.content.primarySolutionId ?? '',
+          title: sol?.title ?? '',
+        }
+      },
+    }),
+  )
+
+  // ==================== 知识图谱 v2（模块 B） ====================
+
+  ctx.tools.register(
+    defineTool({
+      name: 'kg_validate_graph',
+      description:
+        '检查知识图谱：缺失端点、重复边、权重越界、数学关系缺证据状态、prerequisite 成环。返回 errors / warnings 列表，不修改数据。',
+      parameters: {},
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            ok: { type: 'boolean' },
+            errors: { type: 'array', items: { type: 'string' } },
+            warnings: { type: 'array', items: { type: 'string' } },
+            summary: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [
+          {
+            type: 'text',
+            text:
+              `${v.ok ? '✅' : '❌'} ${v.summary}\n` +
+              (v.errors as string[]).map((e) => `错误: ${e}`).join('\n') +
+              ((v.warnings as string[]).length
+                ? '\n' + (v.warnings as string[]).map((w) => `警告: ${w}`).join('\n')
+                : ''),
+          },
+        ],
+      },
+      async execute() {
+        const r = await bank.kg.validateGraph()
+        const summary = `错误 ${r.errors.length} 条，警告 ${r.warnings.length} 条`
+        return { ok: r.ok, errors: r.errors, warnings: r.warnings, summary }
+      },
+    }),
+  )
+
+  ctx.tools.register(
+    defineTool({
+      name: 'kg_get_neighbors',
+      description: '按关系类型/层级取某个知识点的邻居（默认双向）。',
+      parameters: {
+        nodeId: { type: 'string', required: true },
+        type: { type: 'string', description: '只看某一类关系，如 prerequisite' },
+        layer: { type: 'string', description: 'learning | mathematical' },
+        direction: { type: 'string', description: 'out | in | both（默认 both）' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            nodeId: { type: 'string' },
+            neighbors: { type: 'array' },
+            count: { type: 'number' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [
+          {
+            type: 'text',
+            text:
+              `${v.nodeId} 的邻居 ${v.count} 个：\n` +
+              (v.neighbors as any[])
+                .map(
+                  (n) =>
+                    `- ${n.node?.id ?? '?'} ${n.node?.name ?? ''} [${n.relation?.type ?? ''}${n.direction === 'in' ? ' ←' : ' →'}]`,
+                )
+                .join('\n'),
+          },
+        ],
+      },
+      async execute(args) {
+        const neighbors = await bank.kg.getNeighbors(args.nodeId as string, {
+          type: args.type as any,
+          layer: args.layer as any,
+          direction: (args.direction as any) ?? 'both',
+        })
+        return {
+          nodeId: args.nodeId as string,
+          neighbors,
+          count: neighbors.length,
+        }
+      },
+    }),
+  )
+
+  ctx.tools.register(
+    defineTool({
+      name: 'kg_get_prerequisites',
+      description: '取某知识点的前置知识（沿 prerequisite 反向遍历，按深度排序）。',
+      parameters: {
+        nodeId: { type: 'string', required: true },
+        maxDepth: { type: 'number', description: '默认 2' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            nodeId: { type: 'string' },
+            prerequisites: { type: 'array', items: { type: 'string' } },
+            count: { type: 'number' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [
+          {
+            type: 'text',
+            text: `${v.nodeId} 的前置（${v.count}）：${(v.prerequisites as string[]).join('、') || '无'}`,
+          },
+        ],
+      },
+      async execute(args) {
+        const pre = await bank.kg.getPrerequisites(
+          args.nodeId as string,
+          (args.maxDepth as number) ?? 2,
+        )
+        return { nodeId: args.nodeId as string, prerequisites: pre, count: pre.length }
+      },
+    }),
+  )
+
+  ctx.tools.register(
+    defineTool({
+      name: 'kg_find_related_concepts',
+      description: '找一个知识点在数学层/学习层上相邻的概念，用于出题时找迁移与对比素材。',
+      parameters: {
+        nodeId: { type: 'string', required: true },
+        limit: { type: 'number', description: '默认 10' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            nodeId: { type: 'string' },
+            related: { type: 'array' },
+            count: { type: 'number' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [
+          {
+            type: 'text',
+            text:
+              `与 ${v.nodeId} 相关的概念 ${v.count} 个：` +
+              (v.related as any[]).map((r) => r.name ?? r.id).join('、'),
+          },
+        ],
+      },
+      async execute(args) {
+        const related = (await bank.kg.findRelatedConcepts(args.nodeId as string)).slice(
+          0,
+          (args.limit as number) ?? 10,
+        )
+        return { nodeId: args.nodeId as string, related, count: related.length }
+      },
+    }),
+  )
+
+  ctx.tools.register(
+    defineTool({
+      name: 'kg_find_learning_path',
+      description: '在 prerequisite 图上找从起点到目标的学习路径（BFS，默认最多 8 层）。',
+      parameters: {
+        from: { type: 'string', required: true },
+        to: { type: 'string', required: true },
+        maxDepth: { type: 'number', description: '默认 8' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            found: { type: 'boolean' },
+            path: { type: 'array', items: { type: 'string' } },
+            summary: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [{ type: 'text', text: v.summary }],
+      },
+      async execute(args) {
+        const p = await bank.kg.findLearningPath(
+          args.from as string,
+          args.to as string,
+          (args.maxDepth as number) ?? 8,
+        )
+        const found = p.length > 0
+        return {
+          found,
+          path: p,
+          summary: found
+            ? `路径（${p.length} 步）：${p.join(' → ')}`
+            : `未找到 ${args.from} → ${args.to} 的前置路径`,
+        }
+      },
+    }),
+  )
+
+  // ==================== 六维难度（模块 C） ====================
+
+  ctx.tools.register(
+    defineTool({
+      name: 'get_difficulty_rubric',
+      description: '返回六维难度的 rubric（每维 1–5 分的锚点说明），出题/评分前先读它。',
+      parameters: {},
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            rubricVersion: { type: 'number' },
+            dimensions: { type: 'array' },
+            text: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [{ type: 'text', text: v.text }],
+      },
+      async execute() {
+        const r = rubricSummary()
+        return r
+      },
+    }),
+  )
+
+  ctx.tools.register(
+    defineTool({
+      name: 'assess_problem_difficulty',
+      description:
+        '给题目写六维难度初评（概念/技巧/证明深度/前置负担/洞察/一般性，各 1–5，必须写理由）。模型初评一律是 pending，需人工 review_difficulty_profile 才算数。overall 可选，会回写旧五级难度。',
+      parameters: {
+        problemId: { type: 'string', required: true },
+        conceptual: { type: 'number', required: true, description: '概念理解 1–5' },
+        technical: { type: 'number', required: true, description: '技巧执行 1–5' },
+        proofDepth: { type: 'number', required: true, description: '证明深度 1–5' },
+        prerequisiteLoad: { type: 'number', required: true, description: '前置负担 1–5' },
+        ingenuity: { type: 'number', required: true, description: '洞察难度 1–5' },
+        generality: { type: 'number', required: true, description: '一般性 1–5' },
+        conceptualNote: { type: 'string', description: '概念维度的理由' },
+        technicalNote: { type: 'string' },
+        proofDepthNote: { type: 'string' },
+        prerequisiteLoadNote: { type: 'string' },
+        ingenuityNote: { type: 'string' },
+        generalityNote: { type: 'string' },
+        overall: { type: 'number', description: '总难度 1–5（可选）' },
+        assessedBy: { type: 'string', description: 'human | model | empirical，默认 model' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            problemId: { type: 'string' },
+            overall: { type: 'number' },
+            reviewStatus: { type: 'string' },
+            warnings: { type: 'array', items: { type: 'string' } },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [
+          {
+            type: 'text',
+            text:
+              `六维难度已写入 ${v.problemId}（overall=${v.overall ?? '-'}，状态 ${v.reviewStatus}）` +
+              ((v.warnings as string[]).length
+                ? '\n' + (v.warnings as string[]).join('\n')
+                : ''),
+          },
+        ],
+      },
+      async execute(args) {
+        const mk = (level: number, note?: string) => ({
+          level: level as 1 | 2 | 3 | 4 | 5,
+          rationale: note ?? '',
+        })
+        const profile = {
+          rubricVersion: 1 as const,
+          dimensions: {
+            conceptual: mk(args.conceptual as number, args.conceptualNote as string),
+            technical: mk(args.technical as number, args.technicalNote as string),
+            proofDepth: mk(args.proofDepth as number, args.proofDepthNote as string),
+            prerequisiteLoad: mk(
+              args.prerequisiteLoad as number,
+              args.prerequisiteLoadNote as string,
+            ),
+            ingenuity: mk(args.ingenuity as number, args.ingenuityNote as string),
+            generality: mk(args.generality as number, args.generalityNote as string),
+          },
+          overall: args.overall as 1 | 2 | 3 | 4 | 5 | undefined,
+          assessedBy: (args.assessedBy as any) ?? ('model' as const),
+          reviewStatus: 'pending' as const,
+          assessedAt: new Date().toISOString(),
+        }
+        const r = await bank.assessDifficulty(args.problemId as string, profile as any)
+        return {
+          problemId: r.problem.id,
+          overall: r.problem.content.difficultyProfile?.overall ?? 0,
+          reviewStatus: r.problem.content.difficultyProfile?.reviewStatus ?? 'pending',
+          warnings: r.warnings,
+        }
+      },
+    }),
+  )
+
+  ctx.tools.register(
+    defineTool({
+      name: 'update_difficulty_profile',
+      description: '只改六维中的一维（其余保留）。改分后 reviewStatus 自动回到 pending。',
+      parameters: {
+        problemId: { type: 'string', required: true },
+        dimension: {
+          type: 'string',
+          required: true,
+          description: 'conceptual | technical | proofDepth | prerequisiteLoad | ingenuity | generality',
+        },
+        rating: { type: 'number', required: true, description: '1–5' },
+        rationale: { type: 'string', description: '这一维的打分理由' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            problemId: { type: 'string' },
+            dimension: { type: 'string' },
+            rating: { type: 'number' },
+            reviewStatus: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [
+          {
+            type: 'text',
+            text: `${v.problemId} 的 ${v.dimension} 改为 ${v.rating}（状态 ${v.reviewStatus}）`,
+          },
+        ],
+      },
+      async execute(args) {
+        const p = await bank.patchDifficultyDimension(
+          args.problemId as string,
+          args.dimension as any,
+          {
+            level: args.rating as 1 | 2 | 3 | 4 | 5,
+            rationale: (args.rationale as string) ?? '',
+          },
+        )
+        return {
+          problemId: p.id,
+          dimension: args.dimension as string,
+          rating: args.rating as number,
+          reviewStatus: p.content.difficultyProfile?.reviewStatus ?? 'pending',
+        }
+      },
+    }),
+  )
+
+  ctx.tools.register(
+    defineTool({
+      name: 'review_difficulty_profile',
+      description: '人工确认/驳回六维评分。只有这里能把 reviewStatus 变成 reviewed。',
+      parameters: {
+        problemId: { type: 'string', required: true },
+        approve: { type: 'boolean', required: true },
+        reviewer: { type: 'string', description: '审核人，默认 human' },
+        notes: { type: 'string' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            problemId: { type: 'string' },
+            reviewStatus: { type: 'string' },
+            reviewedBy: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [
+          {
+            type: 'text',
+            text: `${v.problemId} 难度评分 ${v.reviewStatus}${v.reviewedBy ? `（${v.reviewedBy}）` : ''}`,
+          },
+        ],
+      },
+      async execute(args) {
+        const p = await bank.reviewDifficultyProfile(
+          args.problemId as string,
+          (args.reviewer as string) ?? 'human',
+          args.approve as boolean,
+          args.notes as string | undefined,
+        )
+        return {
+          problemId: p.id,
+          reviewStatus: p.content.difficultyProfile?.reviewStatus ?? 'pending',
+          reviewedBy: p.content.difficultyProfile?.reviewedBy ?? '',
+        }
+      },
+    }),
+  )
+
+  ctx.tools.register(
+    defineTool({
+      name: 'compare_problem_difficulty',
+      description: '逐维比较两道题（给出每维差值，不做加权平均）。用于检查「变式是不是变简单了」。',
+      parameters: {
+        a: { type: 'string', required: true, description: '原题 id' },
+        b: { type: 'string', required: true, description: '变式 id' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            a: { type: 'string' },
+            b: { type: 'string' },
+            totalDelta: { type: 'number' },
+            lower: { type: 'array', items: { type: 'string' } },
+            text: { type: 'string' },
+          },
+          additionalProperties: true,
+        },
+        render: (_a, v) => [{ type: 'text', text: v.text }],
+      },
+      async execute(args) {
+        const cmp: any = await bank.compareDifficulty(args.a as string, args.b as string)
+        const lower = (cmp.dimensions ?? [])
+          .filter((d: any) => d.delta < 0)
+          .map((d: any) => `${d.dimension}(${d.a}→${d.b})`)
+        return {
+          ...cmp,
+          lower,
+          text:
+            `${args.a} → ${args.b}\n` +
+            (cmp.dimensions ?? [])
+              .map((d: any) => `${d.dimension}: ${d.a} → ${d.b} (${d.delta >= 0 ? '+' : ''}${d.delta})`)
+              .join('\n') +
+            (lower.length ? `\n⚠️ 变简单的维度：${lower.join('、')}` : '\n✅ 没有维度下降'),
+        }
+      },
+    }),
+  )
+
+  // ==================== 迁移（PR-4） ====================
+
+  ctx.tools.register(
+    defineTool({
+      name: 'migrate_bank',
+      description:
+        '把 v5 题库迁移到 v6（多解法 / 六维难度 / 关系分层）。默认先 dryRun 看影响面。迁移前自动备份，可 rollback。不自动生成解法、不自动推测难度、不自动创建关系。',
+      parameters: {
+        dryRun: { type: 'boolean', description: '默认 true' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            dryRun: { type: 'boolean' },
+            scanned: { type: 'number' },
+            migrated: { type: 'number' },
+            skipped: { type: 'number' },
+            failed: { type: 'number' },
+            unresolvedRelations: { type: 'number' },
+            backupId: { type: 'string' },
+            reportPath: { type: 'string' },
+            summary: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        render: (_a, v) => [{ type: 'text', text: v.summary }],
+      },
+      async execute(args) {
+        const dryRun = args.dryRun !== false
+        const r = await migrateBank(bank.config.bankRoot, { dryRun })
+        const summary =
+          `扫描 ${r.scanned} 题：迁移 ${r.migrated}，跳过 ${r.skipped}，失败 ${r.failed.length}` +
+          `，待审关系 ${r.unresolvedRelations}` +
+          (dryRun ? '（dryRun，未写入）' : `；备份 ${r.backupId}，报告 ${r.reportPath}`)
+        return {
+          dryRun,
+          scanned: r.scanned,
+          migrated: r.migrated,
+          skipped: r.skipped,
+          failed: r.failed.length,
+          unresolvedRelations: r.unresolvedRelations,
+          backupId: r.backupId,
+          reportPath: r.reportPath,
+          summary,
+        }
+      },
+    }),
+  )
+
   // 不依赖可能不存在的 ready 事件；插件激活时 effect 初始化
   ctx.effect(() => {
     void bank
       .init()
       .then(({ techniquesSeeded, bankRoot }) => {
         console.log(
-          `[problem-bank] init ok. bankRoot=${bankRoot}, techniquesSeeded=${techniquesSeeded}, schemaVersion=5`,
+          `[problem-bank] init ok. bankRoot=${bankRoot}, techniquesSeeded=${techniquesSeeded}, schemaVersion=6`,
         )
       })
       .catch((e: any) => {

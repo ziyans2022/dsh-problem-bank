@@ -1,13 +1,16 @@
 /**
- * problem-bank 核心类型 v0.5
- * - 知识子图 + 题型骨架 → 抑制换皮
- * - 技巧/思路层（Technique）→ 同技巧、异题面的可控创新
- * - 多信号近重复 + 强制迁移采样
+ * problem-bank 核心类型 v0.6 — Structured Problem Intelligence
+ * - 多解法结构化（Multi-Solution Architecture）
+ * - 数学知识依赖图谱（Learning Graph + Mathematical Graph）
+ * - 多维难度评价（Six-dimensional Difficulty Profile）
+ * - 保留 v0.5：知识子图 + 题型骨架 + 技巧层 + 变式质量门
  */
 export type ProblemStatus = 'draft' | 'pending_review' | 'approved' | 'rejected';
 export type SourceType = 'pdf' | 'screenshot' | 'wechat' | 'lecture' | 'manual' | 'other';
 export type AbilityLevel = '识记' | '理解' | '应用' | '分析' | '综合' | '评价' | '运算' | '推理' | '建模' | '直观想象' | '其他';
-export type RelationType = 'prerequisite' | 'part-of' | 'equivalence' | 'contrast' | 'application';
+export type RelationType = 'prerequisite' | 'part-of' | 'equivalence' | 'equivalent' | 'contrast' | 'application' | 'implies' | 'generalizes' | 'specializes' | 'dual-to' | 'counterexample-to';
+export type RelationLayer = 'learning' | 'mathematical';
+export type EvidenceStatus = 'unreviewed' | 'source_supported' | 'human_verified';
 /** 关键变形 / 解法动作 */
 export type KeyMove = '分段讨论' | '换元' | '平方求和' | '积化和差' | '和差化积' | '构造辅助量' | '参数分离' | '数形结合' | '放缩' | '数学归纳' | '反证' | '分类讨论' | '对称性' | '最值转化为几何' | '待定系数' | '其他';
 export type AnswerType = '数值' | '区间' | '表达式' | '参数范围' | '证明' | '存在性' | '计数' | '概率' | '其他';
@@ -59,12 +62,50 @@ export interface Technique {
     createdAt: string;
     updatedAt: string;
 }
+/** 单步证明 / 解题步骤 */
+export interface SolutionStep {
+    order: number;
+    statement: string;
+    justification?: string;
+    knowledgeNodeIds?: string[];
+    techniqueIds?: string[];
+    theoremRefs?: string[];
+}
+export type SolutionVerification = 'unverified' | 'reviewed' | 'verified';
+export type SolutionApproach = 'algebraic' | 'geometric' | 'analytic' | 'combinatorial' | 'synthetic' | 'other';
+/** 一道题的一种独立解法；审核状态与主解法解耦 */
+export interface ProblemSolution {
+    id: string;
+    title: string;
+    approach: SolutionApproach;
+    keyIdea: string;
+    steps: SolutionStep[];
+    /** 可选完整 Markdown 正文（与 steps 并存） */
+    body?: string;
+    techniqueIds: string[];
+    verification: {
+        status: SolutionVerification;
+        reviewer?: string;
+        notes?: string;
+        checkedAt?: string;
+    };
+}
 export interface ProblemContent {
     stem: string;
+    /**
+     * 兼容旧版：始终对应主解法的 Markdown 表示。
+     * 写入时若存在 primarySolutionId，应与主解法同步。
+     */
     solution: string;
+    /** 多解法列表；缺省时由 solution 自动生成兼容单解法对象 */
+    solutions?: ProblemSolution[];
+    /** 主解法 id；缺省时取 solutions[0] 或 legacy 合成 id */
+    primarySolutionId?: string;
     figures?: FigureSpec[];
     knowledgePoints: string[];
     difficulty: 1 | 2 | 3 | 4 | 5;
+    /** 六维难度剖面（v0.6）；缺省为空，不自动推测旧题 */
+    difficultyProfile?: DimensionalDifficultyProfile;
     tags?: string[];
     abilityLevels?: AbilityLevel[];
 }
@@ -72,6 +113,16 @@ export interface ProblemReview {
     reviewer?: string;
     notes?: string;
     reviewedAt?: string;
+    /** 审核时内容的哈希；内容再改动后该审核自动失效 */
+    contentHash?: string;
+    decision?: 'approve' | 'reject';
+}
+/** 创新审核留痕：commit 时校验它存在、通过且针对当前内容 */
+export interface InnovationRecord {
+    passed: boolean;
+    notes: string[];
+    reviewedAt: string;
+    contentHash: string;
 }
 export interface ProblemLinks {
     lectureIds?: string[];
@@ -84,17 +135,24 @@ export interface ProblemMeta {
     version: number;
 }
 /** frontmatter 格式版本：用于兼容迁移与往返校验 */
-export declare const PROBLEM_SCHEMA_VERSION = 5;
+export declare const PROBLEM_SCHEMA_VERSION = 6;
+export declare const KNOWLEDGE_GRAPH_SCHEMA_VERSION = 2;
 export interface KnowledgeNode {
     id: string;
     name: string;
+    /** 精确定义，避免仅靠名称判断对象同一性 */
+    definition?: string;
+    /** 标准记号，如 Av = λv */
+    notation?: string;
     subject?: string;
+    domain?: string;
     grade?: string;
     semester?: string;
     difficultyRange?: [number, number];
     commonQuestionTypes?: string[];
     typicalErrors?: string[];
     curriculumRef?: string;
+    sourceRefs?: string[];
     aliases?: string[];
     createdAt: string;
     updatedAt: string;
@@ -104,9 +162,14 @@ export interface KnowledgeRelation {
     from: string;
     to: string;
     type: RelationType;
+    /** learning = 教学依赖；mathematical = 数学逻辑关系。二者不得混为一谈 */
+    layer?: RelationLayer;
     weight?: number;
+    evidenceStatus?: EvidenceStatus;
+    sourceRefs?: string[];
     note?: string;
     createdAt: string;
+    updatedAt?: string;
 }
 export interface KnowledgeSubgraph {
     main: string;
@@ -129,6 +192,8 @@ export interface Problem {
     links?: ProblemLinks;
     /** 变式记录：类型、目标、难度剖面与质量门审计 */
     variation?: VariationRecord;
+    /** 创新审核留痕（commit 前置条件之一） */
+    innovation?: InnovationRecord;
     meta: ProblemMeta;
 }
 export interface RawInput {
@@ -148,7 +213,11 @@ export interface SearchQuery {
     ability?: AbilityLevel;
     mainKnowledge?: string;
     mustIncludeSupporting?: string[];
+    /** 必须全部出现在 K(P)=主知识点∪支撑∪knowledgePoints 里 */
+    mustIncludeKnowledge?: string[];
     excludeKnowledge?: string[];
+    /** 六维难度范围过滤（逐维硬约束） */
+    difficultyProfile?: PaperSlot['targetDifficultyProfile'];
     patternId?: string;
     limit?: number;
 }
@@ -188,6 +257,28 @@ export type VariationType = 'original' | 'isomorphic' | 'structural' | 'harder' 
 export declare const VARIATION_TYPE_LABELS: Record<VariationType, string>;
 /** 一般性要求：变式不得靠「一般 → 有限」来掩盖降难 */
 export type Generality = 'general-n' | 'finite-case' | 'single-instance';
+/** 六维难度等级 1–5 */
+export type DifficultyLevel = 1 | 2 | 3 | 4 | 5;
+export type DifficultyDimension = 'conceptual' | 'technical' | 'proofDepth' | 'prerequisiteLoad' | 'ingenuity' | 'generality';
+export interface DimensionRating {
+    level: DifficultyLevel;
+    rationale: string;
+    evidence?: string[];
+}
+/**
+ * 六维难度剖面（v0.6 Multi-dimensional Difficulty Assessment）
+ * 与变式质量门中的 DifficultyProfile（核心结论/关键技巧/最难一步）并存，职责不同。
+ */
+export interface DimensionalDifficultyProfile {
+    rubricVersion: 1;
+    dimensions: Record<DifficultyDimension, DimensionRating>;
+    overall?: DifficultyLevel;
+    assessedBy: 'human' | 'model' | 'empirical';
+    reviewStatus: 'pending' | 'reviewed';
+    reviewedBy?: string;
+    reviewNotes?: string;
+    assessedAt: string;
+}
 /**
  * 难度剖面：只记录可核对的结构性事实，
  * 步数与长度只能作为辅助指标，不能单独代表难度。
@@ -320,12 +411,24 @@ export interface PaperSlot {
     order: number;
     problemId?: string;
     targetMain?: string;
-    targetDifficulty?: 1 | 2 | 3 | 4 | 5;
+    targetDifficulty?: DifficultyLevel;
+    /** 六维难度硬/软约束；硬约束不满足则拒绝填入 */
+    targetDifficultyProfile?: Partial<Record<DifficultyDimension, {
+        min?: DifficultyLevel;
+        max?: DifficultyLevel;
+    }>>;
     targetAbilities?: AbilityLevel[];
     section?: string;
     score?: number;
     generationHint?: string;
     forbiddenPatternIds?: string[];
+    /** 强制填入时留下的记录：哪些维度不合格、为什么仍然接受 */
+    forcedFill?: {
+        problemId: string;
+        failed: string[];
+        reason: string;
+        at: string;
+    };
 }
 export interface PaperStyleProfile {
     id: string;

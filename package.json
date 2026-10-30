@@ -1,7 +1,7 @@
 {
   "name": "dsh-problem-bank",
-  "version": "0.5.12",
-  "description": "Token-efficient math problem bank with technique-driven innovation for DeepSeek Harness",
+  "version": "0.6.0",
+  "description": "Structured Problem Intelligence: multi-solution, knowledge graph v2, six-dimensional difficulty for DeepSeek Harness",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,7 +33,9 @@
     "test:eng": "node scripts/eng-smoke.mjs",
     "test:integration": "node scripts/integration-smoke.mjs",
     "pack:check": "node scripts/pack-check.mjs",
-    "test:gate": "node scripts/variation-gate-smoke.mjs"
+    "test:gate": "node scripts/variation-gate-smoke.mjs",
+    "test:solutions": "node scripts/multi-solution-smoke.mjs",
+    "test:intel": "node scripts/intelligence-smoke.mjs"
   },
   "keywords": [
     "dsh",

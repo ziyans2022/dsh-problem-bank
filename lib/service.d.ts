@@ -7,7 +7,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis';
 import { Service } from '@deepseek-ai/cordis';
-import type { Problem, RawInput, SearchQuery, ProblemContent, ProblemLinks, KnowledgeSubgraph, AbilityLevel, SubgraphSimilarity, GenerationSample, Paper, PaperStyleProfile, MockPaperPlan, ProblemSkeleton, VariationType, VariationEvidence, VariationAudit, DifficultyProfile } from './types.js';
+import type { Problem, RawInput, SearchQuery, ProblemContent, ProblemLinks, KnowledgeSubgraph, AbilityLevel, SubgraphSimilarity, GenerationSample, Paper, PaperStyleProfile, PaperSlot, MockPaperPlan, ProblemSkeleton, VariationType, VariationEvidence, VariationAudit, DifficultyProfile, DimensionalDifficultyProfile, ProblemSolution, DifficultyDimension, DimensionRating } from './types.js';
 import { KnowledgeGraph } from './kg.js';
 export interface ProblemBankConfig {
     bankRoot: string;
@@ -23,9 +23,11 @@ export interface ProblemBankConfig {
     requireVariationGate?: boolean;
     /** 是否允许 simplified（降难）变式入库（默认 false） */
     allowSimplified?: boolean;
+    /** 是否强制创新审核（默认 true）：commit 前必须有 review_innovation 的通过记录 */
+    requireInnovationReview?: boolean;
 }
 export declare class ProblemBankService extends Service {
-    private config;
+    readonly config: ProblemBankConfig;
     readonly kg: KnowledgeGraph;
     constructor(ctx: Context, config: ProblemBankConfig);
     /** 启动时调用：确保目录、技巧种子、id 序列可用 */
@@ -39,23 +41,46 @@ export declare class ProblemBankService extends Service {
     private getNewProblemPath;
     /** 扫描已有题号最大值（序列文件落后时的兜底） */
     private scanMaxIdNum;
+    /**
+     * 内容指纹：审核结论只对「审核时的内容」有效。
+     * 覆盖题面、主解法正文与全部解法的 keyIdea/body。
+     */
+    contentHash(p: Problem): string;
     private nextId;
     private toMarkdown;
-    /**
-     * 按顶级标题切分正文。识别：
-     * - ## 题面
-     * - ## 解析
-     * - ## 图形…（与 toMarkdown 一致，兼容旧「## 配图」）
-     * 题面/解析内部的 ## 小问 等不切换分段。
-     */
-    private splitBodySections;
-    /**
-     * 解析 frontmatter：每行 key: JSON
-     * schemaVersion 缺失视为旧版（1），读入后不强制改写磁盘，下次 write 升到 PROBLEM_SCHEMA_VERSION
-     */
     private fromMarkdown;
     private write;
     private read;
+    /** 确保 solution 字段与主解法同步 */
+    private syncPrimarySolution;
+    addSolution(problemId: string, sol: Omit<ProblemSolution, 'id'> & {
+        id?: string;
+    }): Promise<Problem>;
+    updateSolution(problemId: string, solutionId: string, patch: Partial<Omit<ProblemSolution, 'id'>>): Promise<Problem>;
+    removeSolution(problemId: string, solutionId: string): Promise<Problem>;
+    setPrimarySolution(problemId: string, solutionId: string): Promise<Problem>;
+    updateDifficultyProfile(problemId: string, profile: DimensionalDifficultyProfile): Promise<Problem>;
+    /**
+     * 检查题目六维难度是否满足槽位硬约束。
+     * 返回 null 表示通过；否则返回未满足的维度列表。
+     */
+    checkDifficultyConstraints(problem: Problem, target?: PaperSlot['targetDifficultyProfile']): {
+        ok: boolean;
+        failed: string[];
+    };
+    /** 记录六维初评：校验 rubric，模型初评强制 pending */
+    assessDifficulty(problemId: string, profile: DimensionalDifficultyProfile): Promise<{
+        problem: Problem;
+        warnings: string[];
+    }>;
+    /** 只改一个维度：保留其余维度与审核状态（改分后 reviewed 自动失效） */
+    patchDifficultyDimension(problemId: string, dimension: DifficultyDimension, rating: DimensionRating): Promise<Problem>;
+    /** 人工确认六维评分：模型永远不能自己把自己标成 reviewed */
+    reviewDifficultyProfile(problemId: string, reviewer: string, approve: boolean, notes?: string): Promise<Problem>;
+    /** 两道题的逐维比较（不做加权平均） */
+    compareDifficulty(aId: string, bId: string): Promise<import("./difficulty.js").ProfileComparison>;
+    /** 槽位硬约束校验（供工具层先试算，不落盘） */
+    checkSlot(problem: Problem, target?: PaperSlot['targetDifficultyProfile']): import("./difficulty.js").SlotConstraintResult;
     private tryGitCommit;
     createDraft(raw: RawInput): Promise<Problem>;
     get(id: string): Promise<Problem | null>;
@@ -155,5 +180,11 @@ export declare class ProblemBankService extends Service {
         plan: MockPaperPlan;
     }>;
     /** 把已生成的题目填入试卷槽位 */
-    fillPaperSlot(paperId: string, order: number, problemId: string): Promise<Paper>;
+    fillPaperSlot(paperId: string, order: number, problemId: string, options?: {
+        force?: boolean;
+        reason?: string;
+    }): Promise<{
+        paper: Paper;
+        warnings: string[];
+    }>;
 }

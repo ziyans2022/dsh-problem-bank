@@ -8,10 +8,16 @@
 
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
+import {
+  checkSlotConstraints,
+  compareProfiles,
+  validateDimensionalProfile,
+} from './difficulty.js'
 import type {
   Problem,
   RawInput,
@@ -32,14 +38,21 @@ import type {
   VariationEvidence,
   VariationAudit,
   DifficultyProfile,
+  DimensionalDifficultyProfile,
+  ProblemSolution,
+  SolutionStep,
   QualityCheck,
   Generality,
+  DifficultyLevel,
+  DifficultyDimension,
+  DimensionRating,
 } from './types.js'
 import {
   PROBLEM_SCHEMA_VERSION,
   VARIATION_TYPE_LABELS,
 } from './types.js'
 import { KnowledgeGraph } from './kg.js'
+import { parseProblem, serializeProblem } from './markdown.js'
 import {
   allocateNextId,
   lockedAtomicWrite,
@@ -62,10 +75,12 @@ export interface ProblemBankConfig {
   requireVariationGate?: boolean
   /** 是否允许 simplified（降难）变式入库（默认 false） */
   allowSimplified?: boolean
+  /** 是否强制创新审核（默认 true）：commit 前必须有 review_innovation 的通过记录 */
+  requireInnovationReview?: boolean
 }
 
 export class ProblemBankService extends Service {
-  private config: ProblemBankConfig
+  readonly config: ProblemBankConfig
   readonly kg: KnowledgeGraph
 
   constructor(ctx: Context, config: ProblemBankConfig) {
@@ -146,8 +161,22 @@ export class ProblemBankService extends Service {
     return max
   }
 
-  private async nextId(): Promise<string> {
-    await this.ensureDir(this.config.bankRoot)
+  /**
+   * 内容指纹：审核结论只对「审核时的内容」有效。
+   * 覆盖题面、主解法正文与全部解法的 keyIdea/body。
+   */
+  contentHash(p: Problem): string {
+    const parts = [
+      p.content.stem,
+      p.content.solution,
+      ...(p.content.solutions ?? []).map(
+        (s) => `${s.id}\u0000${s.title}\u0000${s.keyIdea}\u0000${s.body ?? ''}`,
+      ),
+    ]
+    return createHash('sha256').update(parts.join('\u0001')).digest('hex').slice(0, 16)
+  }
+
+  private async nextId(): Promise<string> {    await this.ensureDir(this.config.bankRoot)
     const currentYear = String(new Date().getFullYear())
     await this.ensureDir(path.join(this.config.bankRoot, currentYear))
     return allocateNextId(
@@ -158,153 +187,11 @@ export class ProblemBankService extends Service {
   }
 
   private toMarkdown(p: Problem): string {
-    const fm = {
-      schemaVersion: PROBLEM_SCHEMA_VERSION,
-      id: p.id,
-      status: p.status,
-      source: p.source,
-      knowledgePoints: p.content.knowledgePoints,
-      difficulty: p.content.difficulty,
-      tags: p.content.tags ?? [],
-      abilityLevels: p.content.abilityLevels ?? [],
-      figures: p.content.figures ?? [],
-      subgraph: p.subgraph ?? null,
-      skeleton: p.skeleton ?? null,
-      techniques: p.techniques ?? [],
-      review: p.review ?? null,
-      links: p.links ?? null,
-      variation: p.variation ?? null,
-      meta: p.meta,
-    }
-
-    const yamlLines = Object.entries(fm).map(
-      ([k, v]) => `${k}: ${JSON.stringify(v)}`,
-    )
-
-    const figuresSection = (p.content.figures ?? [])
-      .map((f, i) => {
-        const caption = f.caption ? `> ${f.caption}\n\n` : ''
-        return `## 【配图】${i + 1} (${f.type})\n\n${caption}${f.content}`
-      })
-      .join('\n\n')
-
-    return `---
-${yamlLines.join('\n')}
----
-
-## 题面
-
-${p.content.stem}
-
-## 解析
-
-${p.content.solution}
-
-${figuresSection}
-`
+    return serializeProblem(p)
   }
 
-  /**
-   * 按顶级标题切分正文。识别：
-   * - ## 题面
-   * - ## 解析
-   * - ## 图形…（与 toMarkdown 一致，兼容旧「## 配图」）
-   * 题面/解析内部的 ## 小问 等不切换分段。
-   */
-  private splitBodySections(body: string): { stem: string; solution: string } {
-    const lines = body.split(/\r?\n/)
-    let mode: 'none' | 'stem' | 'solution' | 'other' = 'none'
-    const stemLines: string[] = []
-    const solutionLines: string[] = []
-    for (const line of lines) {
-      if (/^## 题面\s*$/.test(line)) {
-        mode = 'stem'
-        continue
-      }
-      if (/^## 解析\s*$/.test(line)) {
-        mode = 'solution'
-        continue
-      }
-      // 仅匹配 toMarkdown 的「## 【配图】」；兼容 0.5.4「## 图形 N (type)」整行（须带括号类型）
-      // 新格式 ## 【配图】N；兼容 0.5.4 整行「## 图形 N (type)」（须带括号类型，避免切走题面「## 图形 1 示意」）
-      if (
-        /^## 【配图】/.test(line) ||
-        /^## (?:图形|配图)\s+\d+\s*\([^)]*\)\s*$/.test(line) ||
-        /^## (?:图形|配图)\s*$/.test(line)
-      ) {
-        mode = 'other'
-        continue
-      }
-      if (mode === 'stem') stemLines.push(line)
-      else if (mode === 'solution') solutionLines.push(line)
-    }
-    return {
-      stem: stemLines.join('\n').trim(),
-      solution: solutionLines.join('\n').trim(),
-    }
-  }
-
-  /**
-   * 解析 frontmatter：每行 key: JSON
-   * schemaVersion 缺失视为旧版（1），读入后不强制改写磁盘，下次 write 升到 PROBLEM_SCHEMA_VERSION
-   */
   private fromMarkdown(raw: string, id: string): Problem {
-    const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
-    if (!match) throw new Error(`Invalid problem file format: ${id}`)
-
-    const fm: Record<string, any> = {}
-    for (const line of match[1].split(/\r?\n/)) {
-      if (!line.trim() || line.trim().startsWith('#')) continue
-      const idx = line.indexOf(':')
-      if (idx === -1) continue
-      const key = line.slice(0, idx).trim()
-      const val = line.slice(idx + 1).trim()
-      if (!key) continue
-      try {
-        fm[key] = JSON.parse(val)
-      } catch {
-        // 非 JSON 标量兜底，避免偶发坏行整文件失败
-        fm[key] = val
-      }
-    }
-
-    const schemaVersion =
-      typeof fm.schemaVersion === 'number' ? fm.schemaVersion : 1
-    if (schemaVersion > PROBLEM_SCHEMA_VERSION) {
-      console.warn(
-        `[problem-bank] ${id} schemaVersion=${schemaVersion} > 支持版本 ${PROBLEM_SCHEMA_VERSION}，按最佳努力解析`,
-      )
-    }
-
-    const body = match[2]
-    // 行扫描分段：不依赖 \b（中文后 \b 永不成立），题面内「## 小问」保留
-    const { stem, solution } = this.splitBodySections(body)
-
-    return {
-      id: fm.id ?? id,
-      status: fm.status ?? 'draft',
-      source: fm.source ?? { type: 'manual' },
-      content: {
-        stem,
-        solution,
-        figures: fm.figures ?? [],
-        knowledgePoints: fm.knowledgePoints ?? [],
-        difficulty: fm.difficulty ?? 3,
-        tags: fm.tags ?? [],
-        abilityLevels: fm.abilityLevels ?? [],
-      },
-      subgraph: fm.subgraph ?? undefined,
-      skeleton: fm.skeleton ?? undefined,
-      techniques: fm.techniques ?? undefined,
-      review: fm.review ?? undefined,
-      links: fm.links ?? undefined,
-      variation: fm.variation ?? undefined,
-      meta: fm.meta ?? {
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        version: 1,
-      },
-    }
+    return parseProblem(raw, id)
   }
 
   private async write(p: Problem) {
@@ -323,6 +210,314 @@ ${figuresSection}
     } catch {
       return null
     }
+  }
+
+
+  // ─── v0.6 Multi-Solution API ─────────────────────────────────────────
+
+  /** 确保 solution 字段与主解法同步 */
+  private syncPrimarySolution(content: ProblemContent): ProblemContent {
+    const sols = content.solutions ?? []
+    if (!sols.length) return content
+    const primaryId = content.primarySolutionId ?? sols[0].id
+    const primary = sols.find((s) => s.id === primaryId) ?? sols[0]
+    const body =
+      primary.body ||
+      (primary.steps || [])
+        .sort((a, b) => a.order - b.order)
+        .map((st) => `${st.order}. ${st.statement}`)
+        .join('\n') ||
+      content.solution
+    return {
+      ...content,
+      primarySolutionId: primary.id,
+      solution: body,
+    }
+  }
+
+  async addSolution(
+    problemId: string,
+    sol: Omit<ProblemSolution, 'id'> & { id?: string },
+  ): Promise<Problem> {
+    const p = await this.read(problemId)
+    if (!p) throw new Error(`Problem not found: ${problemId}`)
+    const id = sol.id ?? `SOL-${Date.now().toString(36).toUpperCase()}`
+    const full: ProblemSolution = {
+      ...sol,
+      id,
+      techniqueIds: sol.techniqueIds ?? [],
+      steps: sol.steps ?? [],
+      verification: sol.verification ?? { status: 'unverified' },
+    }
+    const solutions = [...(p.content.solutions ?? [])]
+    if (solutions.some((s) => s.id === id)) {
+      throw new Error(`Solution already exists: ${id}`)
+    }
+    solutions.push(full)
+    const primarySolutionId = p.content.primarySolutionId ?? solutions[0].id
+    p.content = this.syncPrimarySolution({
+      ...p.content,
+      solutions,
+      primarySolutionId,
+    })
+    p.meta.updatedAt = new Date().toISOString()
+    p.meta.version += 1
+    await this.write(p)
+    return p
+  }
+
+  async updateSolution(
+    problemId: string,
+    solutionId: string,
+    patch: Partial<Omit<ProblemSolution, 'id'>>,
+  ): Promise<Problem> {
+    const p = await this.read(problemId)
+    if (!p) throw new Error(`Problem not found: ${problemId}`)
+    const solutions = [...(p.content.solutions ?? [])]
+    const idx = solutions.findIndex((s) => s.id === solutionId)
+    if (idx < 0) throw new Error(`Solution not found: ${solutionId}`)
+    solutions[idx] = { ...solutions[idx], ...patch, id: solutionId }
+    p.content = this.syncPrimarySolution({
+      ...p.content,
+      solutions,
+    })
+    p.meta.updatedAt = new Date().toISOString()
+    p.meta.version += 1
+    await this.write(p)
+    return p
+  }
+
+  async removeSolution(problemId: string, solutionId: string): Promise<Problem> {
+    const p = await this.read(problemId)
+    if (!p) throw new Error(`Problem not found: ${problemId}`)
+    let solutions = (p.content.solutions ?? []).filter((s) => s.id !== solutionId)
+    if (solutions.length === 0 && p.content.solution) {
+      // 至少保留一个 legacy 主解法
+      solutions = [
+        {
+          id: 'SOL-LEGACY',
+          title: '主解法',
+          approach: 'other',
+          keyIdea: '',
+          steps: [],
+          body: p.content.solution,
+          techniqueIds: p.techniques ?? [],
+          verification: { status: 'unverified' },
+        },
+      ]
+    }
+    let primarySolutionId = p.content.primarySolutionId
+    if (primarySolutionId === solutionId) {
+      primarySolutionId = solutions[0]?.id
+    }
+    p.content = this.syncPrimarySolution({
+      ...p.content,
+      solutions,
+      primarySolutionId,
+    })
+    p.meta.updatedAt = new Date().toISOString()
+    p.meta.version += 1
+    await this.write(p)
+    return p
+  }
+
+  async setPrimarySolution(problemId: string, solutionId: string): Promise<Problem> {
+    const p = await this.read(problemId)
+    if (!p) throw new Error(`Problem not found: ${problemId}`)
+    const solutions = p.content.solutions ?? []
+    if (!solutions.some((s) => s.id === solutionId)) {
+      throw new Error(`Solution not found: ${solutionId}`)
+    }
+    p.content = this.syncPrimarySolution({
+      ...p.content,
+      primarySolutionId: solutionId,
+    })
+    p.meta.updatedAt = new Date().toISOString()
+    p.meta.version += 1
+    await this.write(p)
+    return p
+  }
+
+  // ─── v0.6 Dimensional Difficulty ─────────────────────────────────────
+
+  async updateDifficultyProfile(
+    problemId: string,
+    profile: DimensionalDifficultyProfile,
+  ): Promise<Problem> {
+    const p = await this.read(problemId)
+    if (!p) throw new Error(`Problem not found: ${problemId}`)
+    // 模型初评不得自动升为 reviewed
+    if (profile.assessedBy === 'model' && profile.reviewStatus === 'reviewed') {
+      profile = { ...profile, reviewStatus: 'pending' }
+    }
+    p.content = {
+      ...p.content,
+      difficultyProfile: profile,
+      // overall 可回写到旧星级（可选）
+      difficulty: (profile.overall ?? p.content.difficulty) as 1 | 2 | 3 | 4 | 5,
+    }
+    p.meta.updatedAt = new Date().toISOString()
+    p.meta.version += 1
+    await this.write(p)
+    return p
+  }
+
+  /**
+   * 检查题目六维难度是否满足槽位硬约束。
+   * 返回 null 表示通过；否则返回未满足的维度列表。
+   */
+  checkDifficultyConstraints(
+    problem: Problem,
+    target?: PaperSlot['targetDifficultyProfile'],
+  ): { ok: boolean; failed: string[] } {
+    if (!target || Object.keys(target).length === 0) {
+      return { ok: true, failed: [] }
+    }
+    const profile = problem.content.difficultyProfile
+    if (!profile) {
+      return { ok: false, failed: ['missing difficultyProfile'] }
+    }
+    const failed: string[] = []
+    for (const [dim, range] of Object.entries(target) as [
+      DifficultyDimension,
+      { min?: DifficultyLevel; max?: DifficultyLevel },
+    ][]) {
+      const rating = profile.dimensions[dim]
+      if (!rating) {
+        failed.push(`${dim}: missing`)
+        continue
+      }
+      if (range.min != null && rating.level < range.min) {
+        failed.push(`${dim}: ${rating.level} < min ${range.min}`)
+      }
+      if (range.max != null && rating.level > range.max) {
+        failed.push(`${dim}: ${rating.level} > max ${range.max}`)
+      }
+    }
+    return { ok: failed.length === 0, failed }
+  }
+
+
+  /** 记录六维初评：校验 rubric，模型初评强制 pending */
+  async assessDifficulty(
+    problemId: string,
+    profile: DimensionalDifficultyProfile,
+  ): Promise<{ problem: Problem; warnings: string[] }> {
+    const p = await this.read(problemId)
+    if (!p) throw new Error(`Problem not found: ${problemId}`)
+
+    const normalized: DimensionalDifficultyProfile = {
+      ...profile,
+      rubricVersion: 1,
+      assessedAt: profile.assessedAt ?? new Date().toISOString(),
+    }
+    if (normalized.assessedBy === 'model' && normalized.reviewStatus === 'reviewed') {
+      normalized.reviewStatus = 'pending'
+      delete normalized.reviewedBy
+    }
+    const errors = validateDimensionalProfile(normalized)
+    if (errors.length) {
+      throw new Error(`六维难度不合法：${errors.join('；')}`)
+    }
+
+    p.content = {
+      ...p.content,
+      difficultyProfile: normalized,
+      difficulty: (normalized.overall ?? p.content.difficulty) as 1 | 2 | 3 | 4 | 5,
+    }
+    p.meta.updatedAt = new Date().toISOString()
+    p.meta.version += 1
+    await this.write(p)
+
+    const warnings: string[] = []
+    if (normalized.assessedBy === 'model' && normalized.reviewStatus === 'pending') {
+      warnings.push('这是模型初评（reviewStatus=pending），入库前需 review_difficulty_profile')
+    }
+    if (normalized.overall == null) {
+      warnings.push('未给 overall：旧五级难度沿用原值，未回写')
+    }
+    return { problem: p, warnings }
+  }
+
+  /** 只改一个维度：保留其余维度与审核状态（改分后 reviewed 自动失效） */
+  async patchDifficultyDimension(
+    problemId: string,
+    dimension: DifficultyDimension,
+    rating: DimensionRating,
+  ): Promise<Problem> {
+    const p = await this.read(problemId)
+    if (!p) throw new Error(`Problem not found: ${problemId}`)
+    const current = p.content.difficultyProfile
+    if (!current) {
+      throw new Error(
+        `题目 ${problemId} 还没有六维难度：请先调用 assess_problem_difficulty 建立初评`,
+      )
+    }
+    const next: DimensionalDifficultyProfile = {
+      ...current,
+      dimensions: { ...current.dimensions, [dimension]: rating },
+      reviewStatus: 'pending',
+      assessedBy: current.assessedBy,
+      assessedAt: new Date().toISOString(),
+    }
+    delete next.reviewedBy
+    const errors = validateDimensionalProfile(next)
+    if (errors.length) throw new Error(`六维难度不合法：${errors.join('；')}`)
+
+    p.content = { ...p.content, difficultyProfile: next }
+    p.meta.updatedAt = new Date().toISOString()
+    p.meta.version += 1
+    await this.write(p)
+    return p
+  }
+
+  /** 人工确认六维评分：模型永远不能自己把自己标成 reviewed */
+  async reviewDifficultyProfile(
+    problemId: string,
+    reviewer: string,
+    approve: boolean,
+    notes?: string,
+  ): Promise<Problem> {
+    const p = await this.read(problemId)
+    if (!p) throw new Error(`Problem not found: ${problemId}`)
+    const current = p.content.difficultyProfile
+    if (!current) throw new Error(`题目 ${problemId} 没有六维难度可审核`)
+    if (!reviewer?.trim()) throw new Error('审核人不能为空')
+
+    const next: DimensionalDifficultyProfile = {
+      ...current,
+      reviewStatus: approve ? 'reviewed' : 'pending',
+      reviewedBy: approve ? reviewer : undefined,
+      reviewNotes: notes,
+      assessedAt: current.assessedAt,
+    }
+    p.content = { ...p.content, difficultyProfile: next }
+    p.meta.updatedAt = new Date().toISOString()
+    p.meta.version += 1
+    await this.write(p)
+    return p
+  }
+
+  /** 两道题的逐维比较（不做加权平均） */
+  compareDifficulty(aId: string, bId: string) {
+    return Promise.all([this.read(aId), this.read(bId)]).then(([a, b]) => {
+      if (!a) throw new Error(`Problem not found: ${aId}`)
+      if (!b) throw new Error(`Problem not found: ${bId}`)
+      return compareProfiles(
+        aId,
+        bId,
+        a.content.difficultyProfile,
+        b.content.difficultyProfile,
+      )
+    })
+  }
+
+  /** 槽位硬约束校验（供工具层先试算，不落盘） */
+  checkSlot(
+    problem: Problem,
+    target?: PaperSlot['targetDifficultyProfile'],
+  ) {
+    return checkSlotConstraints(problem.content.difficultyProfile, target)
   }
 
   private async tryGitCommit(message: string): Promise<{ ok: boolean; detail: string }> {
@@ -514,6 +709,14 @@ ${figuresSection}
     const p = await this.read(problemId)
     if (!p) throw new Error(`Problem not found: ${problemId}`)
 
+    // 审核自匹配：拿本题自己的骨架/技巧生成的样本去审本题，必然通过，等于没审
+    const exemplars = sample?.techniqueMode?.exemplarProblemIds ?? []
+    if (exemplars.includes(problemId)) {
+      throw new Error(
+        `审核自匹配：样本的 exemplarProblemIds 含本题 ${problemId}。请换一道同技巧样板题，或去掉该样板后再采样。`,
+      )
+    }
+
     const notes: string[] = []
     const hasSkeleton = !!p.skeleton?.patternId
     const hasTechniques = (p.techniques || []).length > 0
@@ -598,6 +801,18 @@ ${figuresSection}
       couplingOk &&
       variationOk &&
       !notes.some((n) => n.startsWith('近重复'))
+
+    // 留痕：commit 会校验这条记录存在、通过且针对当前内容
+    p.innovation = {
+      passed: passAuto,
+      notes,
+      reviewedAt: new Date().toISOString(),
+      contentHash: this.contentHash(p),
+    }
+    p.meta.updatedAt = new Date().toISOString()
+    p.meta.version += 1
+    await this.write(p)
+    this.ctx.emit('problem/innovation-reviewed', p, passAuto)
 
     return {
       problemId,
@@ -970,8 +1185,19 @@ ${figuresSection}
     if (p.status === 'rejected') {
       throw new Error('rejected 题目须先 submit_for_review 再审核，禁止直接 approve')
     }
+    if (reviewer && p.source?.uploader && reviewer === p.source.uploader) {
+      throw new Error(
+        `审核自匹配：reviewer 与 uploader 同为 ${reviewer}。请换一位审核人，或留空 reviewer 走自动审核。`,
+      )
+    }
     p.status = decision === 'approve' ? 'approved' : 'rejected'
-    p.review = { reviewer, notes, reviewedAt: new Date().toISOString() }
+    p.review = {
+      reviewer,
+      notes,
+      reviewedAt: new Date().toISOString(),
+      decision,
+      contentHash: this.contentHash(p),
+    }
     p.meta.updatedAt = new Date().toISOString()
     p.meta.version += 1
     await this.write(p)
@@ -1013,6 +1239,43 @@ ${figuresSection}
         `requireHumanReview=true，当前状态 ${p.status} 不允许直接入库。请先 review 通过。`,
       )
     }
+
+    // 审核新鲜度：内容改动后旧审核作废（避免「审完再改」绕过人工关）
+    const nowHash = this.contentHash(p)
+    if (this.config.requireHumanReview) {
+      const rv = p.review
+      if (!rv || rv.decision !== 'approve') {
+        throw new Error(`题目 ${id} 没有通过的人工审核记录，禁止入库。`)
+      }
+      if (rv.contentHash && rv.contentHash !== nowHash) {
+        throw new Error(
+          `题目 ${id} 的审核已失效：审核后内容被修改（review=${rv.contentHash}，当前=${nowHash}）。请重新 submit_for_review 并审核。`,
+        )
+      }
+    }
+
+    // 创新审核不能跳过：review_innovation 的结论必须针对当前内容
+    // 创新审核只约束「变式」：录入的原始真题（variation.type=original）不需要创造性证明
+    const isVariation = (p.variation?.type ?? 'original') !== 'original'
+    if (this.config.requireInnovationReview !== false && isVariation) {
+      const inv = p.innovation
+      if (!inv) {
+        throw new Error(
+          `题目 ${id} 未做创新审核，禁止入库。请先调用 sample_by_technique 取合法样本，再调用 review_innovation。`,
+        )
+      }
+      if (!inv.passed) {
+        throw new Error(
+          `创新审核未通过，禁止入库：${inv.notes.join('；') || '见 review_innovation 返回'}`,
+        )
+      }
+      if (inv.contentHash !== nowHash) {
+        throw new Error(
+          `题目 ${id} 的创新审核已失效：审核后内容被修改。请重新调用 review_innovation。`,
+        )
+      }
+    }
+
     // 未开启人工审核时：draft/pending_review 可在 commit 时升为 approved；rejected 已拦截
     if (p.status !== 'approved') {
       if (p.status !== 'draft' && p.status !== 'pending_review') {
@@ -1057,6 +1320,21 @@ ${figuresSection}
         if (query.mustIncludeSupporting?.length) {
           const supporting = new Set(p.subgraph?.supporting ?? [])
           if (!query.mustIncludeSupporting.every((k) => supporting.has(k))) continue
+        }
+        // 3.6：按知识集合 K(P) 的交集检索，而不是关键词匹配
+        if (query.mustIncludeKnowledge?.length) {
+          const all = new Set<string>([
+            ...(p.subgraph ? [p.subgraph.main, ...p.subgraph.supporting] : []),
+            ...p.content.knowledgePoints,
+          ])
+          if (!query.mustIncludeKnowledge.every((k) => all.has(k))) continue
+        }
+        if (query.difficultyProfile && Object.keys(query.difficultyProfile).length) {
+          const res = checkSlotConstraints(
+            p.content.difficultyProfile,
+            query.difficultyProfile,
+          )
+          if (!res.ok) continue
         }
         if (query.excludeKnowledge?.length) {
           const all = new Set([
@@ -1483,7 +1761,8 @@ ${figuresSection}
     paperId: string,
     order: number,
     problemId: string,
-  ): Promise<Paper> {
+    options?: { force?: boolean; reason?: string },
+  ): Promise<{ paper: Paper; warnings: string[] }> {
     const paper = await this.getPaper(paperId)
     if (!paper) throw new Error(`试卷不存在: ${paperId}`)
     const slot = paper.slots.find((s) => s.order === order)
@@ -1501,11 +1780,34 @@ ${figuresSection}
       )
     }
 
+    const warnings: string[] = []
+
+    // 六维硬约束：任一维度越界即拒绝；不允许用高分维度抵消低分维度
+    const res = this.checkSlot(problem, slot.targetDifficultyProfile)
+    if (!res.ok) {
+      if (!options?.force) {
+        throw new Error(
+          `题目 ${problemId} 不满足槽位 ${order} 的难度约束：${res.failed.join('；')}。` +
+            `如需强行填入，请传 force=true 并写明 reason（会记录在试卷上）。`,
+        )
+      }
+      if (!options?.reason?.trim()) {
+        throw new Error('force=true 时必须提供 reason，写明为什么接受不匹配的难度')
+      }
+      warnings.push(`已强制覆盖难度约束：${res.failed.join('；')}`)
+      slot.forcedFill = {
+        problemId,
+        failed: res.failed,
+        reason: options.reason.trim(),
+        at: new Date().toISOString(),
+      }
+    }
+
     slot.problemId = problemId
     const allFilled = paper.slots.every((s) => s.problemId)
     if (allFilled) paper.status = 'ready'
     paper.meta.updatedAt = new Date().toISOString()
     paper.meta.version += 1
-    return this.savePaper(paper)
+    return { paper: await this.savePaper(paper), warnings }
   }
 }

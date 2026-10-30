@@ -1,7 +1,7 @@
 /**
  * 轻量知识图谱 + 题型骨架近重复 + 强制迁移采样 + 技巧层（同技巧异题面）
  */
-import type { KnowledgeNode, KnowledgeRelation, KnowledgeSubgraph, AbilityLevel, RelationType, SubgraphSimilarity, GenerationSample, Problem, ProblemSkeleton, Technique } from './types.js';
+import type { KnowledgeNode, KnowledgeRelation, KnowledgeSubgraph, AbilityLevel, RelationType, RelationLayer, SubgraphSimilarity, GenerationSample, Problem, ProblemSkeleton, Technique } from './types.js';
 export declare class KnowledgeGraph {
     private root;
     private nodes;
@@ -84,4 +84,38 @@ export declare class KnowledgeGraph {
         existingProblems?: Problem[];
         minEstimatedSteps?: number;
     }): Promise<GenerationSample>;
+    /**
+     * v0.6 图谱一致性校验
+     * - 引用节点必须存在
+     * - 禁止重复关系
+     * - prerequisite / part-of 不得形成环（DAG）
+     * - equivalent / dual-to 应可对称查询
+     * - weight 合法范围
+     * - 数学关系应有 evidenceStatus
+     */
+    validateGraph(): Promise<{
+        ok: boolean;
+        errors: string[];
+        warnings: string[];
+    }>;
+    /** 查询邻居（按关系类型过滤） */
+    getNeighbors(nodeId: string, options?: {
+        type?: RelationType;
+        layer?: RelationLayer;
+        direction?: 'out' | 'in' | 'both';
+    }): Promise<{
+        nodeId: string;
+        relation: KnowledgeRelation;
+    }[]>;
+    /**
+     * 学习路径：从 from 到 to 的 prerequisite 最短路径（BFS）
+     * 返回节点 id 序列，找不到则空数组
+     */
+    findLearningPath(fromId: string, toId: string, maxDepth?: number): Promise<string[]>;
+    /** 查找推广 / 特例 / 对偶等数学关系 */
+    findRelatedConcepts(nodeId: string, types?: RelationType[]): Promise<{
+        type: RelationType;
+        nodeId: string;
+        relation: KnowledgeRelation;
+    }[]>;
 }

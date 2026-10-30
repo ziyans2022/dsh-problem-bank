@@ -8,12 +8,16 @@ DeepSeek Harness 插件：结构化数学题库 + 技巧驱动的变式出题。
 
 题目以 markdown + frontmatter 落盘，可直接用 git 管理；知识点、题型骨架、解题技巧构成三层索引，用来生成「同技巧、异题面」的新题，并自动识别换皮题。
 
+v0.6 起题库本身也升级了：一题可以有多条独立解法（各自审核），知识图谱区分「学习顺序」与「数学关系」两层并能查环，难度从单一星级扩展成六维剖面（概念 / 技巧 / 证明深度 / 前置负担 / 洞察 / 一般性）。
+
 ## 功能
 
 - **题目入库与结构化**：整理题面、解答、知识点、难度与审核状态。
-- **知识图谱管理**：建立知识点及其关联，便于检索相关概念和方法。
+- **多解法**：一题可存多条解法（代数 / 几何 / 解析 / 组合…），每条解法独立审核、可切换主解法，旧接口读到的仍是主解法。
+- **知识图谱管理**：知识点分「学习层 / 数学层」两层，前置关系可查环，支持邻居、前置链、学习路径与相关概念检索。
 - **解题技巧复用**：标注解题技巧，并根据技巧抽取题目，探索方法迁移。
 - **变式生成与近重复检查**：围绕题型骨架设计新题，辅助识别仅替换数字或表述的浅层变式。
+- **六维难度**：概念 / 技巧 / 证明深度 / 前置负担 / 洞察 / 一般性，每维 1–5 分并强制写理由；模型初评一律待人工确认，组卷按维度设硬约束。
 - **变式质量门**：变式必须声明类型与目标，并核对「保留了哪些难点 / 新增了哪些障碍 / 一般性是否被降低」，未过门禁无法入库。
 - **创新性审核流程**：记录机器检查和人工判断，区分草稿与已审核题目。
 - **试卷分析与组卷**：分析题目风格、规划试卷结构，并按题目要求组织试卷。
@@ -44,6 +48,58 @@ DeepSeek Harness 插件：结构化数学题库 + 技巧驱动的变式出题。
 6. 通过后才能 `submit_for_review`；`commit_problem` 会再次拦截未过门禁的题目。
 
 步数与证明长度只作辅助指标，不能单独代表数学难度。
+
+## 多解法
+
+一道题可以有多条解法，各自带审核状态：
+
+```text
+## 解析
+（主解法的正文）
+
+## 解法 SOL-002 — 不变量法
+
+### 核心思路
+利用 U_{n-1}^2 - U_n U_{n-2} = 1。
+
+### 证明步骤
+1. …
+```
+
+- 主解法仍写在 `## 解析`，额外解法写 `## 解法 SOL-xxx — 标题`，旧文件不改也能读。
+- 每条解法的 `verification.status` 独立（`unverified` / `reviewed` / `verified`），写一段文字不会自动变成「已验证」。
+- `content.solution` 始终等于主解法的正文，只读旧字段的调用方不需要改。
+
+## 六维难度
+
+| 维度 | 看什么 |
+| --- | --- |
+| `conceptual` | 理解题目需要多少概念铺垫 |
+| `technical` | 计算/构造的执行难度 |
+| `proofDepth` | 证明需要几层嵌套，是否存在关键引理 |
+| `prerequisiteLoad` | 依赖多少前置知识 |
+| `ingenuity` | 关键洞察有多难想到 |
+| `generality` | 结论覆盖的是单个例子、有限情形还是一般情形 |
+
+- 每维必须写 `rationale`，没有理由的分数不收。
+- `assessedBy: model` 的评分永远是 `pending`，只有 `review_difficulty_profile` 能把它变成 `reviewed`。
+- 组卷时槽位可以按维写下界/上界（如「`generality ≥ 4`」），不满足即拒绝；强行填入必须给理由，且记录在槽位上。不做加权平均抵消。
+
+## 知识图谱 v2
+
+- 关系分两层：`learning`（prerequisite / part-of / application / contrast）与 `mathematical`（equivalent / implies / generalizes / specializes / dual-to / counterexample-to）。
+- 数学关系必须带 `evidenceStatus`（`unreviewed` / `source_supported` / `human_verified`），否则校验时给警告。
+- `kg_validate_graph` 检查：端点是否存在、边是否重复、权重是否越界、`prerequisite` 是否成环。
+- 旧的 `equivalence` 边迁移时标为「待分类」，不会被自动当成严格等价。
+
+## 从 v5 题库升级
+
+```text
+migrate_bank(dryRun=true)    # 先看影响面，不写盘
+migrate_bank(dryRun=false)   # 正式迁移，自动备份到 <bankRoot>/migration/<时间>/
+```
+
+迁移只做三件事：把旧解析转成一条 legacy 主解法、把关系补上层级与证据状态、把 schemaVersion 升到 6。它**不会**自动编造第二条解法、**不会**推测六维难度、**不会**创建新的数学关系；语义不明的边会被列进 `unresolved-relations.json` 等人工处理。可以重复运行（第二次应 `migrated=0`），也可以用备份目录回滚。
 
 ## 改编示例
 
@@ -165,8 +221,9 @@ problem-bank-data/
 | `nearDuplicateThreshold` | `0.75` | 子图相似度判近重复的阈值（0–1） |
 | `requireVariationGate` | `true` | 入库前必须声明变式类型并通过 `audit_variation` |
 | `allowSimplified` | `false` | 是否允许 `simplified`（降难）变式过门；默认禁止 |
+| `requireInnovationReview` | `true` | 变式入库前必须通过创新审核；原始真题（`original`）不受此限 |
 
-## 工具（27 个）
+## 工具（42 个）
 
 `*` 为必填参数。
 
@@ -181,14 +238,14 @@ problem-bank-data/
 | `attach_subgraph` | 为题目挂载知识子图（主知识点 + 支撑 + 能力）。建议同时调用 attach_skeleton 标注题型骨架，否则近重复检测无法一票否决换皮题 | id*:string, main*:string, supporting:array, abilities:array, intent:string, pathSummary:string |
 | `attach_skeleton` | 为题目挂载题型骨架（patternId + keyMoves + conditionStructure + answerType）。同 patternId 的换皮题会被 check_near_duplicates 一票否决。这是抑制肤浅改编的关键 | id*:string, patternId*:string, keyMoves*:array, conditionStructure*:string, answerType*:string, estimatedSteps:number, requiresCoupling:boolean |
 | `attach_techniques` | 为题目标注所用技巧/思路 ID。同技巧异题面生成时，exemplar 靠此字段检索 | id*:string, techniqueIds*:array |
+| `record_variation_intent` | 变式质量门第 1 步（生成前必须先调用）：声明变式类型、目标，并写出原题与候选题的难度剖面（核心结论、关键技巧、最难的一步、一般性、证明义务）。非变式题请用 variationType=original。只替代数字或删掉最难一步的「简化改写」会在 audit_variation 被拦截 | id*:string, variationType*:original / isomorphic / structural / harder / extension / simplified, originalProblemId:string, target:string, coreClaim*:string, keyTechniques:array, hardestStep*:string, generality*:general-n / finite-case / single-instance, proofObligations:array |
+| `audit_variation` | 变式质量门第 2 步（入库前必须通过）：逐项核对「保留了什么难点 / 新增了什么障碍 / 削弱了什么 / 是否独立求解」，并检查一般性未被降低。任何一项不通过都会阻止 commit_problem | id*:string, preserved*:array, added:array, weakened:array, conditionsCompatible*:boolean, solutionExists*:boolean, boundaryChecked*:boolean, proofComplete*:boolean, notes:string |
 | `check_near_duplicates` | 多信号近重复检测：子图相似度 + 题型骨架。同 patternId 一票否决（换皮题直接判近重复）。生成后必须调用 | main*:string, supporting:array, abilities:array, patternId:string, keyMoves:array, conditionStructure:string, answerType:string, threshold:number |
 | `sample_for_generation` | 原创出题可控采样：支撑/前置/易混淆/应用迁移 + 禁止已有 patternId + 硬约束列表。生成前必调；须遵守 hardConstraints 与 requiredMigration | main*:string, maxSupporting:number, abilities:array, negativeTopK:number, minEstimatedSteps:number, preferMigration:string |
-| `sample_by_technique` | 同技巧异题面采样。operator: transfer_domain / change_goal / couple / inverse / critical。可传 secondaryTechniqueId 做技巧组合。返回硬规则五条、迁移说明模板、人工门禁两问 | techniqueId*:string, main:string, abilities:array, minEstimatedSteps:number, operator:string, secondaryTechniqueId:string |
+| `sample_by_technique` | 同技巧异题面采样。operator: transfer_domain/change_goal/couple/inverse/critical。可传 secondaryTechniqueId 做技巧组合。返回硬规则五条、迁移说明模板、人工门禁两问 | techniqueId*:string, main:string, abilities:array, minEstimatedSteps:number, operator:string, secondaryTechniqueId:string |
 | `sample_technique_combo` | 技巧组合采样：主技巧 + 副技巧，算子固定 couple。两技巧须在同一解题路径的关键步耦合，禁止拼盘 | primaryTechniqueId*:string, secondaryTechniqueId*:string, main:string, abilities:array, minEstimatedSteps:number |
 | `plan_technique_batch` | 对一组 TECH 批量产出创新采样计划（不写题）。operator 默认 transfer_domain；couple 时自动与列表中下一个技巧配对 | techniqueIds*:array, operator:string, main:string |
 | `review_innovation` | 创新门禁：自动检查骨架/技巧/禁止 patternId/步数/组合标注/近重复，并返回人工两问。生成入库后调用 | problemId*:string, forbiddenPatternIds:array, minEstimatedSteps:number, primaryTechniqueId:string, secondaryTechniqueId:string, operator:string |
-| `record_variation_intent` | 变式质量门第 1 步：声明变式类型、目标与难度剖面（核心结论、关键技巧、最难的一步、一般性、证明义务）。非变式题用 variationType=original | id*:string, variationType*:string, originalProblemId:string, target:string, coreClaim*:string, keyTechniques:array, hardestStep*:string, generality*:string, proofObligations:array |
-| `audit_variation` | 变式质量门第 2 步：核对保留/新增/削弱的难点与独立求解，并检查一般性未被降低。未通过则 commit_problem 拒绝入库 | id*:string, preserved*:array, added:array, weakened:array, conditionsCompatible*:boolean, solutionExists*:boolean, boundaryChecked*:boolean, proofComplete*:boolean, notes:string |
 | `submit_for_review` | 将草稿提交审核（draft → pending_review） | id*:string |
 | `review_problem` | 审核题目。decision: approve / reject | id*:string, decision*:string, notes:string, reviewer:string |
 | `commit_problem` | 正式入库。requireHumanReview=true 时必须先 approve。autoGitCommit=true 时自动 git commit | id*:string |
@@ -197,8 +254,23 @@ problem-bank-data/
 | `link_problem` | 为题目关联讲义、背景文章或其他题目 | id*:string, lectureIds:array, backgroundArticleIds:array, relatedProblemIds:array |
 | `analyze_paper_style` | 分析一组真题（如中科大少年班历年题）的风格画像：难度分布、能力分布、主知识点频率、高频子图模式、结构分节。结果用于后续模仿出模拟卷 | name*:string, problemIds*:array, styleId:string |
 | `plan_mock_paper` | 根据风格画像生成模拟卷计划：为每一题槽位采样主知识点、支撑、能力、负样本与难度。模型应按计划逐题生成，再填回试卷 | styleProfileId*:string, paperTitle:string, questionCount:number, preferMains:array |
-| `fill_paper_slot` | 将已生成并入库的题目填入模拟卷的指定槽位。全部填完后试卷状态变为 ready | paperId*:string, order*:number, problemId*:string |
+| `fill_paper_slot` | 将已生成并入库的题目填入模拟卷的指定槽位。全部填完后试卷状态变为 ready | paperId*:string, order*:number, problemId*:string, force:boolean, reason:string |
 | `get_paper` | 获取试卷详情（含各槽位与已填题目 id） | paperId*:string |
+| `add_solution` | 为题目追加一条解法。同一题可以有多条独立解法（代数/几何/解析/组合…），各自有独立的审核状态。第一条解法自动成为主解法 | problemId*:string, title*:string, approach*:string, keyIdea*:string, techniqueIds:array, body:string, steps:array, setAsPrimary:boolean |
+| `update_solution` | 修改某条解法的内容或审核状态。改动正文会把审核状态打回 unverified（除非显式传 verificationStatus） | problemId*:string, solutionId*:string, title:string, keyIdea:string, body:string, steps:array, verificationStatus:string, verificationNotes:string, reviewer:string |
+| `remove_solution` | 删除一条解法。删掉主解法时会把下一条提升为主解法；若一条不剩会保留 legacy 主解法 | problemId*:string, solutionId*:string |
+| `set_primary_solution` | 切换主解法。主解法会被同步到旧的 solution 字段，保证兼容只读 solution 的调用方 | problemId*:string, solutionId*:string |
+| `kg_validate_graph` | 检查知识图谱：缺失端点、重复边、权重越界、数学关系缺证据状态、prerequisite 成环。返回 errors / warnings 列表，不修改数据 | — |
+| `kg_get_neighbors` | 按关系类型/层级取某个知识点的邻居（默认双向） | nodeId*:string, type:string, layer:string, direction:string |
+| `kg_get_prerequisites` | 取某知识点的前置知识（沿 prerequisite 反向遍历，按深度排序） | nodeId*:string, maxDepth:number |
+| `kg_find_related_concepts` | 找一个知识点在数学层/学习层上相邻的概念，用于出题时找迁移与对比素材 | nodeId*:string, limit:number |
+| `kg_find_learning_path` | 在 prerequisite 图上找从起点到目标的学习路径（BFS，默认最多 8 层） | from*:string, to*:string, maxDepth:number |
+| `get_difficulty_rubric` | 返回六维难度的 rubric（每维 1–5 分的锚点说明），出题/评分前先读它 | — |
+| `assess_problem_difficulty` | 给题目写六维难度初评（概念/技巧/证明深度/前置负担/洞察/一般性，各 1–5，必须写理由）。模型初评一律是 pending，需人工 review_difficulty_profile 才算数。overall 可选，会回写旧五级难度 | problemId*:string, conceptual*:number, technical*:number, proofDepth*:number, prerequisiteLoad*:number, ingenuity*:number, generality*:number, conceptualNote:string, technicalNote:string, proofDepthNote:string, prerequisiteLoadNote:string, ingenuityNote:string, generalityNote:string, overall:number, assessedBy:string |
+| `update_difficulty_profile` | 只改六维中的一维（其余保留）。改分后 reviewStatus 自动回到 pending | problemId*:string, dimension*:string, rating*:number, rationale:string |
+| `review_difficulty_profile` | 人工确认/驳回六维评分。只有这里能把 reviewStatus 变成 reviewed | problemId*:string, approve*:boolean, reviewer:string, notes:string |
+| `compare_problem_difficulty` | 逐维比较两道题（给出每维差值，不做加权平均）。用于检查「变式是不是变简单了」 | a*:string, b*:string |
+| `migrate_bank` | 把 v5 题库迁移到 v6（多解法 / 六维难度 / 关系分层）。默认先 dryRun 看影响面。迁移前自动备份，可 rollback。不自动生成解法、不自动推测难度、不自动创建关系 | dryRun:boolean |
 
 ## 一次完整的变式出题
 
@@ -208,8 +280,9 @@ problem-bank-data/
 4. `attach_subgraph` + `attach_skeleton` + `attach_techniques` —— 挂知识点、骨架、技巧
 5. `audit_variation` —— 独立求解核验 + 保留 / 新增 / 削弱三栏；一般性不得下降
 6. `check_near_duplicates` —— 同 patternId 一票否决
-7. `review_innovation` —— 自动门禁（含变式质量门）+ 人工两问
-8. `submit_for_review` → `review_problem` → `commit_problem`
+7. `assess_problem_difficulty` + `compare_problem_difficulty` —— 六维评分并逐维对比原题，确认没有维度被悄悄降级
+8. `review_innovation` —— 自动门禁（含变式质量门）+ 人工两问
+9. `submit_for_review` → `review_difficulty_profile`（人工确认评分）→ `review_problem` → `commit_problem`
 
 `commit_problem` 会再拦一次：没声明变式类型、没审计、或审计未通过的题目一律不许入库。
 
@@ -230,6 +303,8 @@ npm install                 # 只需要 typescript
 npm run build               # tsc → lib/，并拷贝 seed-techniques.json
 npm run test:integration    # 真 import lib/：往返、并发、状态机、旧格式迁移、填卷校验
 npm run test:gate           # 变式质量门：未声明/缺障碍/一般性下降/降难默认拒绝
+npm run test:solutions      # 多解法：增/改/删/切换主解法、Markdown 往返、写放大
+npm run test:intel          # 图谱 v2、六维难度、组卷硬约束、迁移与回滚
 npm run pack:check          # 有 typescript 时先 build，再 npm pack + 解包校验
 PB_SKIP_INSTALL=1 npm run pack:check   # 离线时跳过「从 tarball 干净安装」那一步
 ```
@@ -245,6 +320,9 @@ PB_SKIP_INSTALL=1 npm run pack:check   # 离线时跳过「从 tarball 干净安
 3. `icon` 只接受 GitHub 托管的 png/jpg/jpeg/webp——本仓库的 `icon.png` 就是给索引条目用的（`icon.svg` 用于插件自身）。
 
 ## 已知取舍
+
+- 检索仍是内存全量扫描（题库到万题级需要建索引）。
+- 六维难度是评分工具，不是自动推断：没有证据的维度不填，也不会被模型"猜"出来。
 
 - `search` 无索引：按年份目录全量扫描并解析。1000 题以内够用，更多需要加缓存或索引
 - 文件锁是「进程内串行 + `wx` 锁文件」，多进程同时写会互相覆盖

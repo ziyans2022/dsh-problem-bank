@@ -174,6 +174,33 @@ const auditD = await bank.auditVariation(d.id, {
   solving: passingSolving,
 })
 assert.equal(auditD.passed, true)
+
+// 变式还需要过创新审核（PR-0）：先验证没做审核时会被拦
+let blockedByInnovation = false
+try {
+  await bank.commit(d.id)
+} catch (e) {
+  blockedByInnovation = /创新审核/.test(String(e.message))
+}
+assert.equal(blockedByInnovation, true)
+ok('变式未做创新审核时 commit 被拦截')
+
+// 补上创新审核后放行
+await bank.attachSkeleton(d.id, {
+  patternId: 'PTN-MATRIX-INVARIANT',
+  keyMoves: ['构造不变量', '矩阵同余'],
+  conditionStructure: '对任意 n',
+  answerType: '证明',
+  estimatedSteps: 4,
+  requiresCoupling: true,
+})
+await bank.attachTechniques(d.id, ['TECH-PIECEWISE-ABS'])
+await bank.reviewInnovation(d.id, {
+  hardConstraints: [],
+  forbiddenPatternIds: [],
+  minEstimatedSteps: 4,
+  techniqueMode: { operator: 'transfer_domain', exemplarProblemIds: [] },
+})
 await bank.commit(d.id)
 ok('合规同构变式通过质量门并入库')
 

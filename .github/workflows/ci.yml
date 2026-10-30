@@ -39,6 +39,8 @@ jobs:
           node scripts/eng-smoke.mjs
           node scripts/integration-smoke.mjs
           node scripts/variation-gate-smoke.mjs
+          node scripts/multi-solution-smoke.mjs
+          node scripts/intelligence-smoke.mjs
 
   lib-fresh:
     name: lib/ is built from src/
