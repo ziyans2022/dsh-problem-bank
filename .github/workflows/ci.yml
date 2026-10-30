@@ -28,7 +28,7 @@ jobs:
           cache: npm
 
       # 测试只直接依赖 @deepseek-ai/cordis（Service / ctx.reflect）。
-      # dsh-tools 与 schemastery 是 optional peer，只有 index.js 用得到，测试不加载。
+      # dsh-tools 与 schemastery 是 optional peer，只有 index.js 用得到，测试不加载它们。
       - name: Install dependencies
         run: |
           npm ci --no-audit --no-fund || npm install --no-audit --no-fund
@@ -40,17 +40,48 @@ jobs:
           node scripts/integration-smoke.mjs
           node scripts/variation-gate-smoke.mjs
 
+  lib-fresh:
+    name: lib/ is built from src/
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      # 类型检查在这个仓库里会报「找不到 @deepseek-ai/* 的类型」——那是预期的，
+      # 因此忽略 tsc 的退出码，只以「重建结果是否与已提交的 lib/ 一致」为准。
+      - name: Rebuild and compare
+        run: |
+          node node_modules/typescript/bin/tsc -p tsconfig.json || true
+          node scripts/copy-seed.mjs
+          if ! git diff --quiet -- lib; then
+            echo "::error::lib/ 与 src/ 不一致：请先在本地跑 npm run build 再提交。"
+            git --no-pager diff --stat -- lib
+            exit 1
+          fi
+          echo "lib/ 与 src/ 一致。"
+
   package:
     name: package contents
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+
+      # 只装生产依赖：让 pack-check 走「lib/ 是已提交产物」的分支，
+      # 而不是在没有类型定义的情况下尝试重新构建。
       - name: Install dependencies
-        run: |
-          npm ci --no-audit --no-fund || npm install --no-audit --no-fund
-      - name: Assert npm tarball is installable and self-contained
+        run: npm ci --omit=dev --no-audit --no-fund || npm install --omit=dev --no-audit --no-fund
+
+      - name: Assert npm tarball is self-contained
         run: PB_SKIP_INSTALL=1 node scripts/pack-check.mjs
